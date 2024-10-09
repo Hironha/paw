@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "target": "ES6",
+    "module": "NodeNext",
+    "outDir": "./dir",
+    "rootDir": "./src",
+    "noUnusedLocals": true,
+    "noImplicitAny": true,
+    "removeComments": true,
+    "sourceMap": true,
+    "noUncheckedIndexedAccess": true
+  }
+}
