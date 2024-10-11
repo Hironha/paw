@@ -12,65 +12,99 @@ export type PawType =
   | PawBoolean
   | PawUnknown
   | PawArray<PawType>
-  | PawObject<Record<string, PawType>>;
+  | PawObject<Record<string, PawType>>
+  | PawOptional<any>;
 
-export type PawInfer<T extends PawType> = T extends PawString
-  ? string
-  : T extends PawNumber
-  ? number
-  : T extends PawBoolean
-  ? boolean
-  : T extends PawUnknown
-  ? unknown
-  : T extends PawArray<infer U>
-  ? PawInfer<U>[]
-  : T extends PawObject<infer R>
-  ? ParsedPawObject<R>
-  : "invalid type";
+export type PawInfer<T extends PawType> = T extends PawSchema<string, infer U> ? U : "invalid_type";
+
+// export type PawInfer<T extends PawType> = T extends PawOptional<infer E>
+//   ? ReturnType<T["parse"]>
+//   : T extends PawString
+//   ? string
+//   : T extends PawOptional<infer O>
+//   ? ReturnType<O["parse"]>
+//   : T extends PawNumber
+//   ? number
+//   : T extends PawBoolean
+//   ? boolean
+//   : T extends PawUnknown
+//   ? unknown
+//   : T extends PawArray<infer U>
+//   ? PawInfer<U>[]
+//   : T extends PawObject<infer R>
+//   ? ParsedPawObject<R>
+//   : "invalid type";
 
 type ParsedPawObject<T extends Record<string, PawType>> = {
   [K in keyof T]: PawInfer<T[K]>;
 } & {};
 
-export interface PawString {
-  readonly type: "str";
-  parse(val: unknown): string;
-  safeParse(val: unknown): PawResult<string>;
+export interface PawParser<T> {
+  parse(val: unknown): T;
+  safeParse(val: unknown): PawResult<T>;
 }
 
-export interface PawNumber {
-  readonly type: "num";
-  parse(val: unknown): number;
-  safeParse(val: unknown): PawResult<number>;
+export interface PawSchema<N extends string, T> extends PawParser<T> {
+  readonly kind: N;
 }
 
-export interface PawBoolean {
-  readonly type: "bool";
-  parse(val: unknown): boolean;
-  safeParse(val: unknown): PawResult<boolean>;
+export interface PawOptional<T extends PawSchema<string, any>>
+  extends PawSchema<"opt", ReturnType<T["parse"]> | null | undefined> {}
+
+export interface PawString extends PawSchema<"str", string> {
+  optional(): PawOptional<PawString>;
 }
 
-export interface PawUnknown {
-  readonly type: "unknown";
-  parse(val: unknown): unknown;
-  safeParse(val: unknown): PawResult<unknown>;
+export interface PawNumber extends PawSchema<"num", number> {
+  optional(): PawOptional<PawNumber>;
 }
 
-export interface PawArray<T extends PawType> {
-  readonly type: "array";
-  parse(val: unknown): PawInfer<T>[];
-  safeParse(val: unknown): PawResult<PawInfer<T>[]>;
+export interface PawBoolean extends PawSchema<"bool", boolean> {
+  optional(): PawOptional<PawBoolean>;
 }
 
-export interface PawObject<T extends Record<string, PawType>> {
-  readonly type: "object";
-  parse(val: unknown): ParsedPawObject<T>;
-  safeParse(val: unknown): PawResult<ParsedPawObject<T>>;
+export interface PawUnknown extends PawSchema<"unknown", unknown> {}
+
+export interface PawArray<T extends PawType> extends PawSchema<"array", PawInfer<T>[]> {
+  optional(): PawOptional<PawArray<T>>;
+}
+
+export interface PawObject<T extends Record<string, PawType>>
+  extends PawSchema<"object", ParsedPawObject<T>> {
+  optional(): PawOptional<PawObject<T>>;
+}
+
+const OPT = "opt" as const;
+export class PawOptionalDecorator<T extends PawSchema<string, any>> implements PawOptional<T> {
+  public readonly kind = OPT;
+  protected readonly parser: T;
+
+  constructor(parser: T) {
+    this.parser = parser;
+  }
+
+  parse(val: unknown): ReturnType<T["parse"]> | null | undefined {
+    if (val == null) {
+      return val;
+    }
+    return this.parser.parse(val);
+  }
+
+  safeParse(val: unknown): PawResult<ReturnType<T["parse"]> | null | undefined> {
+    if (val == null) {
+      return Result.ok(val);
+    }
+    return this.parser.safeParse(val);
+  }
 }
 
 const STR = "str" as const;
 class PawStringParser implements PawString {
-  public readonly type = STR;
+  public readonly kind = STR;
+
+  optional(): PawOptional<PawString> {
+    return new PawOptionalDecorator(this);
+  }
 
   parse(val: unknown): string {
     if (typeof val !== "string") {
@@ -89,7 +123,11 @@ class PawStringParser implements PawString {
 
 const NUM = "num" as const;
 class PawNumberParser implements PawNumber {
-  public readonly type = NUM;
+  public readonly kind = NUM;
+
+  optional(): PawOptional<PawNumber> {
+    return new PawOptionalDecorator(this);
+  }
 
   parse(val: unknown): number {
     if (typeof val !== "number") {
@@ -108,7 +146,11 @@ class PawNumberParser implements PawNumber {
 
 const BOOL = "bool" as const;
 class PawBooleanParser implements PawBoolean {
-  public readonly type = BOOL;
+  public readonly kind = BOOL;
+
+  optional(): PawOptional<PawBoolean> {
+    return new PawOptionalDecorator(this);
+  }
 
   parse(val: unknown): boolean {
     if (typeof val !== "boolean") {
@@ -127,7 +169,7 @@ class PawBooleanParser implements PawBoolean {
 
 const UNKNOWN = "unknown" as const;
 class PawUnknownParser implements PawUnknown {
-  public readonly type = UNKNOWN;
+  public readonly kind = UNKNOWN;
 
   parse(val: unknown): unknown {
     return val;
@@ -140,11 +182,15 @@ class PawUnknownParser implements PawUnknown {
 
 const ARRAY = "array" as const;
 class PawArrayParser<T extends PawType> implements PawArray<T> {
-  public readonly type = ARRAY;
+  public readonly kind = ARRAY;
   private readonly unit: T;
 
   constructor(unit: T) {
     this.unit = unit;
+  }
+
+  optional(): PawOptional<PawArray<T>> {
+    return new PawOptionalDecorator(this);
   }
 
   parse(val: unknown): PawInfer<T>[] {
@@ -174,11 +220,15 @@ class PawArrayParser<T extends PawType> implements PawArray<T> {
 
 const OBJECT = "object" as const;
 class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T> {
-  public readonly type = OBJECT;
+  public readonly kind = OBJECT;
   private readonly fields: T;
 
   constructor(fields: T) {
     this.fields = fields;
+  }
+
+  optional(): PawOptional<PawObject<T>> {
+    return new PawOptionalDecorator(this);
   }
 
   parse(val: unknown): ParsedPawObject<T> {
@@ -189,7 +239,7 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
     const obj: Record<string, unknown> = val as Record<string, unknown>;
     for (const k in this.fields) {
       const v = obj[k];
-      this.fields[k].parse(v);
+      this.fields[k]!.parse(v);
     }
 
     return obj as ParsedPawObject<T>;
@@ -203,7 +253,7 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
     const obj: Record<string, unknown> = val as Record<string, unknown>;
     for (const k in this.fields) {
       const v = obj[k];
-      const parsed = this.fields[k].safeParse(v);
+      const parsed = this.fields[k]!.safeParse(v);
       if (parsed.kind === "err") {
         return Result.err(parsed.err);
       }
