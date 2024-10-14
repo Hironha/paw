@@ -3,8 +3,8 @@ import { paw, type PawInfer } from "./paw";
 type Person = PawInfer<typeof PersonSchema>;
 
 const PersonSchema = paw.object({
-  age: paw.number(),
-  name: paw.string(),
+  age: paw.number().int().min(0),
+  name: paw.string().optional(),
   traits: paw.object({
     bald: paw.boolean().optional(),
     height: paw.string().optional(),
@@ -28,3 +28,4 @@ function main(): void {
 }
 
 main();
+

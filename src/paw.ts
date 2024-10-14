@@ -17,24 +17,6 @@ export type PawType =
 
 export type PawInfer<T extends PawType> = T extends PawSchema<string, infer U> ? U : "invalid_type";
 
-// export type PawInfer<T extends PawType> = T extends PawOptional<infer E>
-//   ? ReturnType<T["parse"]>
-//   : T extends PawString
-//   ? string
-//   : T extends PawOptional<infer O>
-//   ? ReturnType<O["parse"]>
-//   : T extends PawNumber
-//   ? number
-//   : T extends PawBoolean
-//   ? boolean
-//   : T extends PawUnknown
-//   ? unknown
-//   : T extends PawArray<infer U>
-//   ? PawInfer<U>[]
-//   : T extends PawObject<infer R>
-//   ? ParsedPawObject<R>
-//   : "invalid type";
-
 type ParsedPawObject<T extends Record<string, PawType>> = {
   [K in keyof T]: PawInfer<T[K]>;
 } & {};
@@ -57,6 +39,9 @@ export interface PawString extends PawSchema<"str", string> {
 
 export interface PawNumber extends PawSchema<"num", number> {
   optional(): PawOptional<PawNumber>;
+  min(val: number): PawNumber;
+  max(val: number): PawNumber;
+  int(): PawNumber;
 }
 
 export interface PawBoolean extends PawSchema<"bool", boolean> {
@@ -124,22 +109,55 @@ class PawStringParser implements PawString {
 const NUM = "num" as const;
 class PawNumberParser implements PawNumber {
   public readonly kind = NUM;
+  private _int: boolean = false;
+  private _min: number | undefined;
+  private _max: number | undefined;
+
+  int(): PawNumber {
+    this._int = true;
+    return this;
+  }
+
+  min(val: number): PawNumber {
+    this._min = val;
+    return this;
+  }
+
+  max(val: number): PawNumber {
+    this._max = val;
+    return this;
+  }
 
   optional(): PawOptional<PawNumber> {
     return new PawOptionalDecorator(this);
   }
 
   parse(val: unknown): number {
-    if (typeof val !== "number") {
-      throw new Error("Value is not a number");
+    const result = this.safeParse(val);
+    if (result.kind === "err") {
+      throw new Error(result.err.message);
     }
-    return val;
+
+    return result.value;
   }
 
   safeParse(val: unknown): PawResult<number> {
     if (typeof val !== "number") {
       return Result.err({ message: "Value is not a number" });
     }
+
+    if (this._int && !Number.isInteger(val)) {
+      return Result.err({ message: "Value is not an integer" });
+    }
+
+    if (this._min && val < this._min) {
+      return Result.err({ message: "Value is smaller than defined min" });
+    }
+
+    if (this._max && val > this._max) {
+      return Result.err({ message: "Value is bigger than defined max" });
+    }
+
     return Result.ok(val);
   }
 }
@@ -290,3 +308,4 @@ class Paw {
 }
 
 export const paw = new Paw();
+
