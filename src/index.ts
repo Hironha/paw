@@ -1,4 +1,4 @@
-import { paw, type PawInfer } from "./paw";
+import { paw, type PawInfer } from "./paw.ts";
 
 type Person = PawInfer<typeof PersonSchema>;
 
@@ -14,7 +14,7 @@ const PersonSchema = paw.object({
       paw.object({
         name: paw.string(),
         kind: paw.literal("cat", "dog"),
-      })
+      }),
     )
     .min(1),
 });
@@ -36,4 +36,3 @@ function main(): void {
 }
 
 main();
-

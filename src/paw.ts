@@ -1,4 +1,4 @@
-import * as Result from "./result";
+import * as Result from "./result.ts";
 
 export type PawError = {
   message: string;
@@ -16,11 +16,14 @@ export type PawType =
   | PawOptional<any>
   | PawLiteral<string>;
 
-export type PawInfer<T extends PawType> = T extends PawSchema<string, infer U> ? U : "invalid_type";
+export type PawInfer<T extends PawType> = T extends PawSchema<string, infer U> ? U
+  : "invalid_type";
 
-type ParsedPawObject<T extends Record<string, PawType>> = {
-  [K in keyof T]: PawInfer<T[K]>;
-} & {};
+type ParsedPawObject<T extends Record<string, PawType>> =
+  & {
+    [K in keyof T]: PawInfer<T[K]>;
+  }
+  & {};
 
 export interface PawParser<T> {
   parse(val: unknown): T;
@@ -82,7 +85,9 @@ export class PawOptionalDecorator<T extends PawSchema<string, any>> implements P
     return this.parser.parse(val);
   }
 
-  safeParse(val: unknown): PawResult<ReturnType<T["parse"]> | null | undefined> {
+  safeParse(
+    val: unknown,
+  ): PawResult<ReturnType<T["parse"]> | null | undefined> {
     if (val == null) {
       return Result.ok(val);
     }
