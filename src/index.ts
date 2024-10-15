@@ -9,6 +9,14 @@ const PersonSchema = paw.object({
     bald: paw.boolean().optional(),
     height: paw.string().optional(),
   }),
+  pets: paw
+    .array(
+      paw.object({
+        name: paw.string(),
+        kind: paw.literal("cat", "dog"),
+      })
+    )
+    .min(1),
 });
 
 function main(): void {

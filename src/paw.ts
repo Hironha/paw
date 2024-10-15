@@ -13,7 +13,8 @@ export type PawType =
   | PawUnknown
   | PawArray<PawType>
   | PawObject<Record<string, PawType>>
-  | PawOptional<any>;
+  | PawOptional<any>
+  | PawLiteral<string>;
 
 export type PawInfer<T extends PawType> = T extends PawSchema<string, infer U> ? U : "invalid_type";
 
@@ -52,11 +53,17 @@ export interface PawUnknown extends PawSchema<"unknown", unknown> {}
 
 export interface PawArray<T extends PawType> extends PawSchema<"array", PawInfer<T>[]> {
   optional(): PawOptional<PawArray<T>>;
+  min(size: number): PawArray<T>;
+  max(size: number): PawArray<T>;
 }
 
 export interface PawObject<T extends Record<string, PawType>>
   extends PawSchema<"object", ParsedPawObject<T>> {
   optional(): PawOptional<PawObject<T>>;
+}
+
+export interface PawLiteral<T extends string> extends PawSchema<"literal", T> {
+  optional(): PawOptional<PawLiteral<T>>;
 }
 
 const OPT = "opt" as const;
@@ -201,10 +208,22 @@ class PawUnknownParser implements PawUnknown {
 const ARRAY = "array" as const;
 class PawArrayParser<T extends PawType> implements PawArray<T> {
   public readonly kind = ARRAY;
-  private readonly unit: T;
+  private readonly _unit: T;
+  private _max: number | undefined;
+  private _min: number | undefined;
 
   constructor(unit: T) {
-    this.unit = unit;
+    this._unit = unit;
+  }
+
+  max(size: number): PawArray<T> {
+    this._max = size;
+    return this;
+  }
+
+  min(size: number): PawArray<T> {
+    this._min = size;
+    return this;
   }
 
   optional(): PawOptional<PawArray<T>> {
@@ -212,12 +231,11 @@ class PawArrayParser<T extends PawType> implements PawArray<T> {
   }
 
   parse(val: unknown): PawInfer<T>[] {
-    if (!Array.isArray(val)) {
-      throw new Error("Value is not an array");
+    const result = this.safeParse(val);
+    if (result.kind === "err") {
+      throw new Error(result.err.message);
     }
-
-    val.every(this.unit.parse);
-    return val;
+    return result.value;
   }
 
   safeParse(val: unknown): PawResult<PawInfer<T>[]> {
@@ -225,8 +243,16 @@ class PawArrayParser<T extends PawType> implements PawArray<T> {
       return Result.err({ message: "Value is not an array" });
     }
 
+    if (this._max != null && val.length > this._max) {
+      return Result.err({ message: "Array bigger than max size" });
+    }
+
+    if (this._min != null && val.length > this._min) {
+      return Result.err({ message: "Array smaller than min size" });
+    }
+
     for (const v of val) {
-      const parsed = this.unit.safeParse(v);
+      const parsed = this._unit.safeParse(v);
       if (parsed.kind === "err") {
         return Result.err(parsed.err);
       }
@@ -281,6 +307,40 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
   }
 }
 
+const LITERAL = "literal" as const;
+class PawLiteralParser<T extends string> implements PawLiteral<T> {
+  public readonly kind = LITERAL;
+  private readonly _values: T[];
+
+  constructor(...values: T[]) {
+    this._values = values;
+  }
+
+  optional(): PawOptional<PawLiteral<T>> {
+    return new PawOptionalDecorator(this);
+  }
+
+  parse(val: unknown): T {
+    const result = this.safeParse(val);
+    if (result.kind === "err") {
+      throw new Error(result.err.message);
+    }
+    return result.value;
+  }
+
+  safeParse(val: unknown): PawResult<T> {
+    if (typeof val !== "string") {
+      return Result.err({ message: "Value is not a literal string" });
+    }
+
+    const idx = this._values.indexOf(val as T);
+    if (idx < 0) {
+      return Result.err({ message: "Value is not a valid literal" });
+    }
+    return Result.ok(val as T);
+  }
+}
+
 class Paw {
   string(): PawString {
     return new PawStringParser();
@@ -305,7 +365,10 @@ class Paw {
   object<T extends Record<string, PawType>>(fields: T): PawObject<T> {
     return new PawObjectParser(fields);
   }
+
+  literal<T extends string>(...values: T[]): PawLiteral<T> {
+    return new PawLiteralParser(...values);
+  }
 }
 
 export const paw = new Paw();
-
