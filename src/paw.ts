@@ -146,8 +146,8 @@ class PawNumberParser implements PawNumber {
 
   parse(val: unknown): number {
     const result = this.safeParse(val);
-    if (result.kind === "err") {
-      throw new Error(result.err.message);
+    if (result.isErr()) {
+      throw new Error(result.value.message);
     }
 
     return result.value;
@@ -237,8 +237,8 @@ class PawArrayParser<T extends PawType> implements PawArray<T> {
 
   parse(val: unknown): PawInfer<T>[] {
     const result = this.safeParse(val);
-    if (result.kind === "err") {
-      throw new Error(result.err.message);
+    if (result.isErr()) {
+      throw new Error(result.value.message);
     }
     return result.value;
   }
@@ -258,8 +258,8 @@ class PawArrayParser<T extends PawType> implements PawArray<T> {
 
     for (const v of val) {
       const parsed = this._unit.safeParse(v);
-      if (parsed.kind === "err") {
-        return Result.err(parsed.err);
+      if (parsed.isErr()) {
+        return Result.err(parsed.value);
       }
     }
 
@@ -303,8 +303,8 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
     for (const k in this.fields) {
       const v = obj[k];
       const parsed = this.fields[k]!.safeParse(v);
-      if (parsed.kind === "err") {
-        return Result.err(parsed.err);
+      if (parsed.isErr()) {
+        return Result.err(parsed.value);
       }
     }
 
@@ -327,8 +327,8 @@ class PawLiteralParser<T extends string> implements PawLiteral<T> {
 
   parse(val: unknown): T {
     const result = this.safeParse(val);
-    if (result.kind === "err") {
-      throw new Error(result.err.message);
+    if (result.isErr()) {
+      throw new Error(result.value.message);
     }
     return result.value;
   }

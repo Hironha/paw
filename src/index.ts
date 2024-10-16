@@ -28,7 +28,7 @@ function main(): void {
     },
   });
 
-  if (result.kind === "err") {
+  if (result.isErr()) {
     console.error(result.err);
   } else {
     console.debug(result.value);
