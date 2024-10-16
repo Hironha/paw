@@ -14,8 +14,7 @@ export type PawType =
   | PawOptional<any>
   | PawLiteral<string>;
 
-export type PawInfer<T extends PawType> = T extends PawSchema<string, infer U> ? U
-  : "invalid_type";
+export type PawInfer<T extends PawType> = T extends PawSchema<string, infer U> ? U : "invalid_type";
 
 type ParsedPawObject<T extends Record<string, PawType>> =
   & {
@@ -99,9 +98,7 @@ export class PawOptionalDecorator<T extends PawSchema<string, any>> implements P
     return result.value;
   }
 
-  safeParse(
-    val: unknown,
-  ): PawResult<ReturnType<T["parse"]> | null | undefined> {
+  safeParse(val: unknown): PawResult<ReturnType<T["parse"]> | null | undefined> {
     if (this._refine) {
       val = this._refine(val);
     }
@@ -228,10 +225,11 @@ class PawBooleanParser implements PawBoolean {
   }
 
   parse(val: unknown): boolean {
-    if (typeof val !== "boolean") {
-      throw new Error("Value is not a boolean");
+    const result = this.safeParse(val);
+    if (result.isErr()) {
+      throw new Error(result.value.message);
     }
-    return val;
+    return result.value;
   }
 
   safeParse(val: unknown): PawResult<boolean> {
@@ -311,7 +309,7 @@ class PawArrayParser<T extends PawType> implements PawArray<T> {
       return Result.err({ message: "Array bigger than max size" });
     }
 
-    if (this._min != null && val.length > this._min) {
+    if (this._min != null && val.length < this._min) {
       return Result.err({ message: "Array smaller than min size" });
     }
 
@@ -346,17 +344,11 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
   }
 
   parse(val: unknown): ParsedPawObject<T> {
-    if (!val || typeof val !== "object") {
-      throw new Error("Value is not an object");
+    const result = this.safeParse(val);
+    if (result.isErr()) {
+      throw new Error(result.value.message);
     }
-
-    const obj: Record<string, unknown> = val as Record<string, unknown>;
-    for (const k in this._fields) {
-      const v = obj[k];
-      this._fields[k]!.parse(v);
-    }
-
-    return obj as ParsedPawObject<T>;
+    return result.value;
   }
 
   safeParse(val: unknown): PawResult<ParsedPawObject<T>> {
@@ -364,8 +356,8 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
       val = this._refine(val);
     }
 
-    if (!val || typeof val !== "object") {
-      throw new Error("Value is not an object");
+    if (val == null || typeof val !== "object") {
+      return Result.err({ message: "Value is not an object" });
     }
 
     const obj: Record<string, unknown> = val as Record<string, unknown>;
@@ -435,9 +427,7 @@ export function array<T extends PawType>(unit: T): PawArray<T> {
   return new PawArrayParser(unit);
 }
 
-export function object<T extends Record<string, PawType>>(
-  fields: T,
-): PawObject<T> {
+export function object<T extends Record<string, PawType>>(fields: T): PawObject<T> {
   return new PawObjectParser(fields);
 }
 
