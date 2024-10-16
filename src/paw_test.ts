@@ -1,5 +1,5 @@
 import { assert, assertEquals } from "@std/assert";
-import { paw } from "./paw.ts";
+import * as paw from "./paw.ts";
 
 Deno.test("string parser should work", () => {
   const str = paw.string();

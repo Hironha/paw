@@ -346,34 +346,32 @@ class PawLiteralParser<T extends string> implements PawLiteral<T> {
   }
 }
 
-class Paw {
-  string(): PawString {
-    return new PawStringParser();
-  }
-
-  number(): PawNumber {
-    return new PawNumberParser();
-  }
-
-  boolean(): PawBoolean {
-    return new PawBooleanParser();
-  }
-
-  unknown(): PawUnknown {
-    return new PawUnknownParser();
-  }
-
-  array<T extends PawType>(unit: T): PawArray<T> {
-    return new PawArrayParser(unit);
-  }
-
-  object<T extends Record<string, PawType>>(fields: T): PawObject<T> {
-    return new PawObjectParser(fields);
-  }
-
-  literal<T extends string>(...values: T[]): PawLiteral<T> {
-    return new PawLiteralParser(...values);
-  }
+export function string(): PawString {
+  return new PawStringParser();
 }
 
-export const paw = new Paw();
+export function number(): PawNumber {
+  return new PawNumberParser();
+}
+
+export function boolean(): PawBoolean {
+  return new PawBooleanParser();
+}
+
+export function unknown(): PawUnknown {
+  return new PawUnknownParser();
+}
+
+export function array<T extends PawType>(unit: T): PawArray<T> {
+  return new PawArrayParser(unit);
+}
+
+export function object<T extends Record<string, PawType>>(
+  fields: T,
+): PawObject<T> {
+  return new PawObjectParser(fields);
+}
+
+export function literal<T extends string>(...values: T[]): PawLiteral<T> {
+  return new PawLiteralParser(...values);
+}

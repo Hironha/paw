@@ -1,6 +1,6 @@
-import { paw, type PawInfer } from "./paw.ts";
+import * as paw from "./paw.ts";
 
-type Person = PawInfer<typeof PersonSchema>;
+type Person = paw.PawInfer<typeof PersonSchema>;
 
 const PersonSchema = paw.object({
   age: paw.number().int().min(0),
