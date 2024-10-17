@@ -11,11 +11,11 @@ interface ResultVariant<T, E> {
   expectErr(message: string): E;
 }
 
-export function ok<T>(value: T): Ok<T> {
+export function createOk<T>(value: T): Ok<T> {
   return new Ok(value);
 }
 
-export function err<E>(value: E): Err<E> {
+export function createErr<E>(value: E): Err<E> {
   return new Err(value);
 }
 
