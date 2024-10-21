@@ -85,7 +85,7 @@ export interface PawLiteral<T extends string> extends PawSchema<"literal", T> {
 export type RefineFn<T = any> = (val: unknown) => T;
 
 const OPT = "opt" as const;
-export class PawOptionalDecorator<T extends PawSchema<string, any>> implements PawOptional<T> {
+export class PawOptionalParser<T extends PawSchema<string, any>> implements PawOptional<T> {
   public readonly kind = OPT;
   private readonly _parser: T;
   private _refine: RefineFn | undefined;
@@ -132,7 +132,7 @@ class PawStringParser implements PawString {
   }
 
   optional(): PawOptional<PawString> {
-    return new PawOptionalDecorator(this);
+    return new PawOptionalParser(this);
   }
 
   refine<T>(fn: RefineFn<T>): PawString {
@@ -192,7 +192,7 @@ class PawNumberParser implements PawNumber {
   }
 
   optional(): PawOptional<PawNumber> {
-    return new PawOptionalDecorator(this);
+    return new PawOptionalParser(this);
   }
 
   refine<T>(fn: RefineFn<T>): PawNumber {
@@ -249,7 +249,7 @@ class PawBooleanParser implements PawBoolean {
   }
 
   optional(): PawOptional<PawBoolean> {
-    return new PawOptionalDecorator(this);
+    return new PawOptionalParser(this);
   }
 
   refine<T>(fn: RefineFn<T>): PawBoolean {
@@ -318,7 +318,7 @@ class PawArrayParser<T extends PawType> implements PawArray<T> {
   }
 
   optional(): PawOptional<PawArray<T>> {
-    return new PawOptionalDecorator(this);
+    return new PawOptionalParser(this);
   }
 
   refine<U>(fn: RefineFn<U>): PawArray<T> {
@@ -380,7 +380,7 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
   }
 
   optional(): PawOptional<PawObject<T>> {
-    return new PawOptionalDecorator(this);
+    return new PawOptionalParser(this);
   }
 
   refine<U>(fn: RefineFn<U>): PawObject<T> {
@@ -432,7 +432,7 @@ class PawLiteralParser<const T extends string> implements PawLiteral<T> {
   }
 
   optional(): PawOptional<PawLiteral<T>> {
-    return new PawOptionalDecorator(this);
+    return new PawOptionalParser(this);
   }
 
   parse(val: unknown): T {
