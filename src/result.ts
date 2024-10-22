@@ -11,14 +11,6 @@ interface ResultVariant<T, E> {
   expectErr(message: string): E;
 }
 
-export function ok<T>(value: T): Ok<T> {
-  return new Ok(value);
-}
-
-export function err<E>(value: E): Err<E> {
-  return new Err(value);
-}
-
 const OK = "ok" as const;
 export class Ok<T> implements ResultVariant<T, never> {
   public readonly _kind = OK;

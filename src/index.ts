@@ -13,7 +13,7 @@ const PersonSchema = paw.object({
     .array(
       paw.object({
         name: paw.string(),
-        kind: paw.literal("cat", "dog"),
+        kind: paw.literal(["cat", "dog"]),
       }),
     )
     .min(1),
@@ -29,7 +29,7 @@ function main(): void {
   });
 
   if (result.isErr()) {
-    console.error(result.err);
+    console.error(result.value.message);
   } else {
     console.debug(result.value);
   }
