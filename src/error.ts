@@ -6,7 +6,8 @@ export type PawError =
   | PawArrayIdxError
   | PawObjectTypeError
   | PawObjectPropError
-  | PawLiteralError;
+  | PawLiteralError
+  | PawUnionError;
 
 interface PawErrorBase {
   readonly message: string;
@@ -103,6 +104,16 @@ export class PawObjectPropError implements PawErrorBase {
 const LITERAL = "literal" as const;
 export class PawLiteralError implements PawErrorBase {
   public readonly source = LITERAL;
+  public message: string;
+
+  constructor(message: string) {
+    this.message = message;
+  }
+}
+
+const UNION = "union" as const;
+export class PawUnionError implements PawErrorBase {
+  public readonly source = UNION;
   public message: string;
 
   constructor(message: string) {

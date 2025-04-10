@@ -265,3 +265,42 @@ Deno.test("literal parse error returns a literal error ", () => {
   const error = result.unwrapErr();
   assertEquals(error.source, "literal");
 });
+
+Deno.test("union with primitive types works", () => {
+  const union = paw.union([paw.string(), paw.number()]);
+  const result = union.safeParse("test");
+  assert(result.isOk());
+  assert(result.unwrap() === "test");
+});
+
+Deno.test("union with complex objects works", () => {
+  const dog = paw.object({
+    name: paw.string(),
+    sound: paw.literal(["woof"]),
+  });
+  const cat = paw.object({
+    name: paw.string(),
+    sound: paw.literal(["meow"]),
+  });
+  const union = paw.union([dog, cat]);
+
+  const result = union.safeParse({
+    name: "nina",
+    sound: "meow",
+  });
+  assert(result.isOk());
+
+  const nina = result.unwrap();
+  assertEquals(nina.name, "nina");
+  assertEquals(nina.sound, "meow");
+});
+
+Deno.test("union with refine works", () => {
+  const schema = paw
+    .union([paw.boolean(), paw.literal(["true", "false"])])
+    .refine((value) => (typeof value === "number" ? value > 0 : false));
+
+  const result = schema.safeParse(1);
+  assert(result.isOk());
+  assertEquals(result.unwrap(), true);
+});
