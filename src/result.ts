@@ -1,96 +1,53 @@
-export type Result<T, E> = Ok<T> | Err<E>;
+export type PawResult<T, E> = PawOk<T> | PawError<E>;
 
-interface ResultVariant<T, E> {
-  ok(): T | undefined;
-  err(): E | undefined;
-  isOk(): this is Ok<T>;
-  isErr(): this is Err<E>;
-  unwrap(): T;
-  unwrapErr(): E;
-  expect(message: string): T;
-  expectErr(message: string): E;
-}
-
-const OK = "ok" as const;
-export class Ok<T> implements ResultVariant<T, never> {
-  public readonly _kind = OK;
+export class PawOk<T> {
+  public readonly ok: true = true;
   public readonly value: T;
 
   constructor(value: T) {
     this.value = value;
   }
 
-  ok(): T {
-    return this.value;
-  }
-
-  err(): undefined {
-    return undefined;
-  }
-
-  isOk(): this is Ok<T> {
-    return true;
-  }
-
-  isErr(): this is Err<never> {
-    return false;
-  }
-
-  unwrap(): T {
-    return this.value;
-  }
-
-  unwrapErr(): never {
-    throw new Error("Unwrap error of ok result variant");
-  }
-
-  expect(): T {
-    return this.value;
-  }
-
-  expectErr(message: string): never {
-    throw new Error(message);
+  toJSON(): { ok: true; value: T } {
+    return {
+      ok: true,
+      value: this.value,
+    };
   }
 }
 
-const ERR = "err" as const;
-export class Err<E> implements ResultVariant<never, E> {
-  public readonly _kind = ERR;
-  public readonly value: E;
+export class PawError<E> {
+  public readonly ok: false = false;
+  public readonly error: E;
 
-  constructor(value: E) {
-    this.value = value;
+  constructor(error: E) {
+    this.error = error;
   }
 
-  ok(): undefined {
-    return undefined;
+  toJSON(): { ok: false; error: E } {
+    return {
+      ok: false,
+      error: this.error,
+    };
   }
+}
 
-  err(): E {
-    return this.value;
+/**
+ * @throws {Error} Throws an error when `result` is a `PawError`
+ */
+export function unwrapOk<T, E>(result: PawResult<T, E>): T {
+  if (!result.ok) {
+    throw new Error("Attempt to unwrap a paw error variant");
   }
+  return result.value;
+}
 
-  isOk(): this is Ok<never> {
-    return false;
+/**
+ * @throws {Error} Throws an error when `result` is a `PawError`
+ */
+export function unwrapError<T, E>(result: PawResult<T, E>): E {
+  if (result.ok) {
+    throw new Error("Attempt to unwrap error a paw ok variant");
   }
-
-  isErr(): this is Err<E> {
-    return true;
-  }
-
-  unwrap(): never {
-    throw new Error("Unwrap ok of err result variant");
-  }
-
-  unwrapErr(): E {
-    return this.value;
-  }
-
-  expect(message: string): never {
-    throw new Error(message);
-  }
-
-  expectErr(): E {
-    return this.value;
-  }
+  return result.error;
 }

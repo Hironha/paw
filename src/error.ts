@@ -1,4 +1,4 @@
-export type PawError =
+export type PawIssue =
   | PawStringError
   | PawNumberError
   | PawBooleanError
@@ -60,9 +60,9 @@ export class PawArrayIdxError implements PawErrorBase {
   public readonly source = ARR;
   public readonly kind = ARR_IDX;
   public readonly idx: number;
-  public error: PawError;
+  public error: PawIssue;
 
-  constructor(idx: number, error: PawError) {
+  constructor(idx: number, error: PawIssue) {
     this.idx = idx;
     this.error = error;
   }
@@ -89,9 +89,9 @@ export class PawObjectPropError implements PawErrorBase {
   public readonly source = OBJ;
   public readonly kind = OBJ_PROP;
   public readonly prop: string;
-  public error: PawError;
+  public error: PawIssue;
 
-  constructor(prop: string, error: PawError) {
+  constructor(prop: string, error: PawIssue) {
     this.prop = prop;
     this.error = error;
   }

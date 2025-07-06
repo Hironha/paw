@@ -1,9 +1,9 @@
-import { Err, Ok, type Result } from "./result";
+import { PawError, PawOk, type PawResult } from "./result";
 import {
   PawArrayIdxError,
   PawArrayTypeError,
   PawBooleanError,
-  type PawError,
+  type PawIssue,
   PawLiteralError,
   PawNumberError,
   PawObjectPropError,
@@ -11,8 +11,6 @@ import {
   PawStringError,
   PawUnionError,
 } from "./error";
-
-export type PawResult<T, E extends PawError = PawError> = Result<T, E>;
 
 export type PawType =
   | PawString
@@ -33,7 +31,7 @@ type ParsedPawObject<T extends Record<string, PawType>> = {
 
 export interface PawParser<T> {
   parse(val: unknown): T;
-  safeParse(val: unknown): PawResult<T>;
+  safeParse(val: unknown): PawResult<T, PawIssue>;
 }
 
 export interface PawSchema<N extends string, T> extends PawParser<T> {
@@ -107,20 +105,20 @@ export class PawOptionalParser<T extends PawSchema<string, any>> implements PawO
 
   parse(val: unknown): ReturnType<T["parse"]> | null | undefined {
     const result = this.safeParse(val);
-    if (result.isErr()) {
-      throw new Error(result.value.message);
+    if (!result.ok) {
+      throw new Error(result.error.message);
     }
 
     return result.value;
   }
 
-  safeParse(val: unknown): PawResult<ReturnType<T["parse"]> | null | undefined> {
+  safeParse(val: unknown): PawResult<ReturnType<T["parse"]> | null | undefined, PawIssue> {
     if (this.refineFn) {
       val = this.refineFn(val);
     }
 
     if (val == null) {
-      return new Ok(val);
+      return new PawOk(val);
     }
 
     return this.parser.safeParse(val);
@@ -148,24 +146,24 @@ class PawStringParser implements PawString {
 
   parse(val: unknown): string {
     const result = this.safeParse(val);
-    if (result.isErr()) {
-      throw new Error(result.value.message);
+    if (!result.ok) {
+      throw new Error(result.error.message);
     }
 
     return result.value;
   }
 
-  safeParse(val: unknown): PawResult<string> {
+  safeParse(val: unknown): PawResult<string, PawIssue> {
     if (this.refineFn) {
       val = this.refineFn(val);
     }
 
     if (typeof val !== "string") {
       const message = this.message ?? "Value is not a string";
-      return new Err(new PawStringError(message));
+      return new PawError(new PawStringError(message));
     }
 
-    return new Ok(val);
+    return new PawOk(val);
   }
 }
 
@@ -208,39 +206,39 @@ class PawNumberParser implements PawNumber {
 
   parse(val: unknown): number {
     const result = this.safeParse(val);
-    if (result.isErr()) {
-      throw new Error(result.value.message);
+    if (!result.ok) {
+      throw new Error(result.error.message);
     }
 
     return result.value;
   }
 
-  safeParse(val: unknown): PawResult<number> {
+  safeParse(val: unknown): PawResult<number, PawIssue> {
     if (this.refineFn) {
       val = this.refineFn(val);
     }
 
     if (typeof val !== "number") {
       const message = this.message ?? "Value is not a number";
-      return new Err(new PawNumberError(message));
+      return new PawError(new PawNumberError(message));
     }
 
     if (this.intcfg.value && !Number.isInteger(val)) {
       const message = this.intcfg.message ?? "Value is not an integer";
-      return new Err(new PawNumberError(message));
+      return new PawError(new PawNumberError(message));
     }
 
     if (this.mincfg && val < this.mincfg.value) {
       const message = this.mincfg.message ?? "Value is smaller than defined min";
-      return new Err(new PawNumberError(message));
+      return new PawError(new PawNumberError(message));
     }
 
     if (this.maxcfg && val > this.maxcfg.value) {
       const message = this.maxcfg.message ?? "Value is bigger than defined max";
-      return new Err(new PawNumberError(message));
+      return new PawError(new PawNumberError(message));
     }
 
-    return new Ok(val);
+    return new PawOk(val);
   }
 }
 
@@ -265,24 +263,24 @@ class PawBooleanParser implements PawBoolean {
 
   parse(val: unknown): boolean {
     const result = this.safeParse(val);
-    if (result.isErr()) {
-      throw new Error(result.value.message);
+    if (!result.ok) {
+      throw new Error(result.error.message);
     }
 
     return result.value;
   }
 
-  safeParse(val: unknown): PawResult<boolean> {
+  safeParse(val: unknown): PawResult<boolean, PawIssue> {
     if (this.refineFn) {
       val = this.refineFn(val);
     }
 
     if (typeof val !== "boolean") {
       const message = this.message ?? "Value is not a boolean";
-      return new Err(new PawBooleanError(message));
+      return new PawError(new PawBooleanError(message));
     }
 
-    return new Ok(val);
+    return new PawOk(val);
   }
 }
 
@@ -294,8 +292,8 @@ class PawUnknownParser implements PawUnknown {
     return val;
   }
 
-  safeParse(val: unknown): PawResult<unknown> {
-    return new Ok(val);
+  safeParse(val: unknown): PawResult<unknown, PawIssue> {
+    return new PawOk(val);
   }
 }
 
@@ -334,42 +332,42 @@ class PawArrayParser<T extends PawType> implements PawArray<T> {
 
   parse(val: unknown): PawInfer<T>[] {
     const result = this.safeParse(val);
-    if (result.isErr()) {
-      throw new Error(result.value.message);
+    if (!result.ok) {
+      throw new Error(result.error.message);
     }
 
     return result.value;
   }
 
-  safeParse(val: unknown): PawResult<PawInfer<T>[]> {
+  safeParse(val: unknown): PawResult<PawInfer<T>[], PawIssue> {
     if (this.refineFn) {
       val = this.refineFn(val);
     }
 
     if (!Array.isArray(val)) {
       const message = this.message ?? "Value is not an array";
-      return new Err(new PawArrayTypeError(message));
+      return new PawError(new PawArrayTypeError(message));
     }
 
     if (this.maxcfg != null && val.length > this.maxcfg.value) {
       const message = this.maxcfg.message ?? "Array bigger than max size";
-      return new Err(new PawArrayTypeError(message));
+      return new PawError(new PawArrayTypeError(message));
     }
 
     if (this.mincfg != null && val.length < this.mincfg.value) {
       const message = this.mincfg.message ?? "Array smaller than min size";
-      return new Err(new PawArrayTypeError(message));
+      return new PawError(new PawArrayTypeError(message));
     }
 
     for (let i = 0; i < val.length; i++) {
       const v = val[i];
       const parsed = this.unit.safeParse(v);
-      if (parsed.isErr()) {
-        return new Err(new PawArrayIdxError(i, parsed.value));
+      if (!parsed.ok) {
+        return new PawError(new PawArrayIdxError(i, parsed.error));
       }
     }
 
-    return new Ok(val);
+    return new PawOk(val);
   }
 }
 
@@ -396,33 +394,33 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
 
   parse(val: unknown): ParsedPawObject<T> {
     const result = this.safeParse(val);
-    if (result.isErr()) {
-      throw new Error(result.value.message);
+    if (!result.ok) {
+      throw new Error(result.error.message);
     }
 
     return result.value;
   }
 
-  safeParse(val: unknown): PawResult<ParsedPawObject<T>> {
+  safeParse(val: unknown): PawResult<ParsedPawObject<T>, PawIssue> {
     if (this.refineFn) {
       val = this.refineFn(val);
     }
 
     if (val == null || typeof val !== "object") {
       const message = this.message ?? "Value is not an object";
-      return new Err(new PawObjectTypeError(message));
+      return new PawError(new PawObjectTypeError(message));
     }
 
     const obj: Record<string, unknown> = val as Record<string, unknown>;
     for (const k in this.fields) {
       const v = obj[k];
       const parsed = this.fields[k]!.safeParse(v);
-      if (parsed.isErr()) {
-        return new Err(new PawObjectPropError(k, parsed.value));
+      if (!parsed.ok) {
+        return new PawError(new PawObjectPropError(k, parsed.error));
       }
     }
 
-    return new Ok(obj as ParsedPawObject<T>);
+    return new PawOk(obj as ParsedPawObject<T>);
   }
 }
 
@@ -443,23 +441,23 @@ class PawLiteralParser<const T extends string> implements PawLiteral<T> {
 
   parse(val: unknown): T {
     const result = this.safeParse(val);
-    if (result.isErr()) {
-      throw new Error(result.value.message);
+    if (!result.ok) {
+      throw new Error(result.error.message);
     }
     return result.value;
   }
 
-  safeParse(val: unknown): PawResult<T> {
+  safeParse(val: unknown): PawResult<T, PawIssue> {
     if (typeof val !== "string") {
-      return new Err(new PawLiteralError(this.message));
+      return new PawError(new PawLiteralError(this.message));
     }
 
     const idx = this.values.indexOf(val as T);
     if (idx < 0) {
-      return new Err(new PawLiteralError(this.message));
+      return new PawError(new PawLiteralError(this.message));
     }
 
-    return new Ok(val as T);
+    return new PawOk(val as T);
   }
 }
 
@@ -486,27 +484,27 @@ class PawUnionParser<T extends Array<PawSchema<any, any>>> implements PawUnion<T
 
   parse(val: unknown): PawInfer<T[number]> {
     const result = this.safeParse(val);
-    if (result.isErr()) {
-      throw new Error(result.value.message);
+    if (!result.ok) {
+      throw new Error(result.error.message);
     }
 
     return result.value;
   }
 
-  safeParse(val: unknown): PawResult<PawInfer<T[number]>> {
+  safeParse(val: unknown): PawResult<PawInfer<T[number]>, PawIssue> {
     if (this.refineFn) {
       val = this.refineFn(val);
     }
 
     for (const schema of this.schemas) {
       const parsed = schema.safeParse(val);
-      if (parsed.isOk()) {
+      if (parsed.ok) {
         return parsed;
       }
     }
 
     // [TODO] improve error message
-    return new Err(new PawUnionError(this.message));
+    return new PawError(new PawUnionError(this.message));
   }
 }
 
