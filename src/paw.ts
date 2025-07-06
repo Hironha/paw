@@ -1,4 +1,4 @@
-import { Err, Ok, type Result } from "./result.ts";
+import { Err, Ok, type Result } from "./result";
 import {
   PawArrayIdxError,
   PawArrayTypeError,
@@ -10,7 +10,7 @@ import {
   PawObjectTypeError,
   PawStringError,
   PawUnionError,
-} from "./error.ts";
+} from "./error";
 
 export type PawResult<T, E extends PawError = PawError> = Result<T, E>;
 
@@ -532,7 +532,7 @@ export function array<T extends PawType>(unit: T, message?: string): PawArray<T>
 
 export function object<T extends Record<string, PawType>>(
   fields: T,
-  message?: string
+  message?: string,
 ): PawObject<T> {
   return new PawObjectParser(fields, message);
 }
@@ -543,7 +543,7 @@ export function literal<const T extends string>(values: T[], message?: string): 
 
 export function union<T extends Array<PawSchema<any, any>>>(
   schemas: T,
-  message?: string
+  message?: string,
 ): PawUnion<T> {
   return new PawUnionParser(schemas, message);
 }
