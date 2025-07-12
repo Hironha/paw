@@ -29,6 +29,19 @@ describe("paw", () => {
     expect(!str.safeParse(true).ok, "true is not a string").toBeTruthy();
   });
 
+  test("string check works", () => {
+    const str = paw.string().check((v) => v.includes("/"), "invalid pattern");
+    let result = str.safeParse("me/nina");
+    expect(result.ok).toBeTruthy();
+
+    result = str.safeParse("test");
+    const error = unwrapError(result);
+    expect(error).toMatchObject({
+      kind: "str",
+      message: "invalid pattern",
+    });
+  });
+
   test("number parser works", () => {
     const num = paw.number();
 
@@ -92,6 +105,20 @@ describe("paw", () => {
     expect(!num.safeParse("test").ok, "test is not an int").toBeTruthy();
   });
 
+  test("number check works", () => {
+    const num = paw.number().check((n) => n < 18, "not a minor age");
+    let result = num.safeParse(12);
+    expect(result.ok).toBeTruthy();
+
+    result = num.safeParse(22);
+    expect(!result.ok).toBeTruthy();
+    const error = unwrapError(result);
+    expect(error).toMatchObject({
+      kind: "num",
+      message: "not a minor age",
+    });
+  });
+
   test("boolean parser works", () => {
     const bool = paw.boolean();
 
@@ -117,6 +144,20 @@ describe("paw", () => {
     expect(bool.parse(true)).toStrictEqual(true);
     expect(bool.parse(false)).toStrictEqual(false);
     expect(bool.parse("test"), "refined to trueish").toStrictEqual(true);
+  });
+
+  test("boolean check works", () => {
+    const bool = paw.boolean().check((b) => b, "boolean should be true");
+    let result = bool.safeParse(true);
+    expect(result.ok).toBeTruthy();
+
+    result = bool.safeParse(false);
+    expect(!result.ok).toBeTruthy();
+    const error = unwrapError(result);
+    expect(error).toMatchObject({
+      kind: "bool",
+      message: "boolean should be true",
+    });
   });
 
   test("optional parser works", () => {
@@ -169,6 +210,39 @@ describe("paw", () => {
     expect(!strarr.safeParse({}).ok, "value is not an array").toBeTruthy();
   });
 
+  test("array immediate check works", () => {
+    const arr = paw
+      .array(paw.string())
+      .check((arr) => arr[0] === "nina", "first should be nina")
+      .immediate();
+
+    let result = arr.safeParse(["nina"]);
+    expect(result.ok).toBeTruthy();
+
+    result = arr.safeParse(["test", "nina"]);
+    expect(!result.ok).toBeTruthy();
+    const error = unwrapError(result);
+    expect(error).toMatchObject({
+      kind: "arr-type",
+      message: "first should be nina",
+    });
+  });
+
+  test("array retained check works", () => {
+    const arr = paw.array(paw.string()).check((arr) => arr[0] === "nina", "first should be nina");
+
+    let result = arr.safeParse(["nina"]);
+    expect(result.ok).toBeTruthy();
+
+    result = arr.safeParse(["test", "nina"]);
+    expect(!result.ok).toBeTruthy();
+    const error = unwrapError(result);
+    expect(error).toMatchObject({
+      kind: "arr-type",
+      message: "first should be nina",
+    });
+  });
+
   test("array immediate parse error returns array type error", () => {
     const strarr = paw.array(paw.string(), "expected array").immediate();
     const result = strarr.safeParse("test");
@@ -193,7 +267,7 @@ describe("paw", () => {
     });
   });
 
-  test("array immediate parse error returns array idx error", () => {
+  test("array retained parse error returns array idx error", () => {
     const strarr = paw.array(paw.string("expected string"));
     let result = strarr.safeParse(["test", 2]);
     expect(!result.ok, "array includes a non string value");
@@ -272,7 +346,7 @@ describe("paw", () => {
     expect(!strarr.safeParse({}).ok, "value is not an array").toBeTruthy();
   });
 
-  test("immediate object parser works", () => {
+  test("retained object parser works", () => {
     const obj = paw.object({ name: paw.string() });
 
     expect(obj.parse({ name: "test" })).toMatchObject({ name: "test" });
@@ -289,7 +363,7 @@ describe("paw", () => {
     expect(error.kind).toStrictEqual("obj-type");
   });
 
-  test("immediate object parse error returns object prop error", () => {
+  test("immediate object parse error returns object schema error", () => {
     const obj = paw.object({ name: paw.string("name error") }).immediate();
     const result = obj.safeParse({ name: 2 });
     expect(!result.ok, "name property is not a string").toBeTruthy();
@@ -308,7 +382,7 @@ describe("paw", () => {
     ]);
   });
 
-  test("retained object parse retained works", () => {
+  test("retained object parse error returns object schema error", () => {
     const obj = paw.object({
       name: paw.string("name error"),
       age: paw.number("age error").required("age required"),
@@ -334,6 +408,39 @@ describe("paw", () => {
           issue: {
             kind: "req",
             message: "age required",
+          },
+        },
+      ],
+    });
+  });
+
+  test("immediate object parse with nested object work", () => {
+    const obj = paw
+      .object(
+        {
+          name: paw.string("name error"),
+          traits: paw.object(
+            {
+              height: paw.number("height error").required("height required"),
+            },
+            "invalid traits",
+          ),
+        },
+        "invalid object",
+      )
+      .immediate();
+
+    const result = obj.safeParse({ name: 2, traits: {} });
+    expect(!result.ok).toBeTruthy();
+    expect(unwrapError(result)).toMatchObject({
+      kind: "obj-schema",
+      message: "invalid object",
+      issues: [
+        {
+          field: "name",
+          issue: {
+            kind: "str",
+            message: "name error",
           },
         },
       ],
@@ -387,6 +494,41 @@ describe("paw", () => {
     });
   });
 
+  test("immediate object parse check works", () => {
+    const obj = paw
+      .object({ name: paw.string(), lastname: paw.string() })
+      .check((obj) => obj.name !== obj.lastname, "name and lastname should be different")
+      .immediate();
+
+    let result = obj.safeParse({ name: "nina", lastname: "maria" });
+    expect(result.ok).toBeTruthy();
+
+    result = obj.safeParse({ name: "nina", lastname: "nina" });
+    expect(!result.ok).toBeTruthy();
+    const error = unwrapError(result);
+    expect(error).toMatchObject({
+      kind: "obj-type",
+      message: "name and lastname should be different",
+    });
+  });
+
+  test("retained object parse check works", () => {
+    const obj = paw
+      .object({ name: paw.string(), lastname: paw.string() })
+      .check((obj) => obj.name !== obj.lastname, "name and lastname should be different");
+
+    let result = obj.safeParse({ name: "nina", lastname: "maria" });
+    expect(result.ok).toBeTruthy();
+
+    result = obj.safeParse({ name: "nina", lastname: "nina" });
+    expect(!result.ok).toBeTruthy();
+    const error = unwrapError(result);
+    expect(error).toMatchObject({
+      kind: "obj-type",
+      message: "name and lastname should be different",
+    });
+  });
+
   test("literal parser works", () => {
     const animals = paw.literal(["cat", "dog"]);
     expect(animals.parse("cat")).toStrictEqual("cat");
@@ -407,6 +549,23 @@ describe("paw", () => {
 
     const error = unwrapError(result);
     expect(error.kind).toStrictEqual("literal");
+  });
+
+  test("literal check works", () => {
+    const domestic = ["cat"];
+    const animals = paw
+      .literal(["cat", "tiger"])
+      .check((animal) => domestic.includes(animal), "not a domestic animal");
+    let result = animals.safeParse("cat");
+    expect(result.ok).toBeTruthy();
+
+    result = animals.safeParse("tiger");
+    expect(!result.ok).toBeTruthy();
+    const error = unwrapError(result);
+    expect(error).toMatchObject({
+      kind: "literal",
+      message: "not a domestic animal",
+    });
   });
 
   test("union with primitive types works", () => {
@@ -446,5 +605,24 @@ describe("paw", () => {
     const result = schema.safeParse(1);
     expect(result.ok).toBeTruthy();
     expect(unwrapOk(result)).toStrictEqual(true);
+  });
+
+  test("union check works", () => {
+    const union = paw
+      .union([paw.string().optional(), paw.number()])
+      .check(
+        (union) => typeof union === "string" && union === "nina",
+        "if string then should be nina",
+      );
+    let result = union.safeParse("nina");
+    expect(result.ok).toBeTruthy();
+
+    result = union.safeParse("test");
+    expect(!result.ok).toBeTruthy();
+    const error = unwrapError(result);
+    expect(error).toMatchObject({
+      kind: "union",
+      message: "if string then should be nina",
+    });
   });
 });
