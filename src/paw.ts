@@ -99,9 +99,9 @@ export interface PawNumber
     PawRefinable<PawNumber>,
     PawMaybeOptional<PawNumber>,
     PawCheckable<PawNumber, number> {
-  int(): PawNumber;
-  min(val: number): PawNumber;
-  max(val: number): PawNumber;
+  int(message?: string): PawNumber;
+  min(val: number, message?: string): PawNumber;
+  max(val: number, message?: string): PawNumber;
 }
 
 export interface PawBoolean
@@ -122,8 +122,8 @@ export interface PawArray<T extends PawType>
    * error is encountered.
    */
   immediate(): PawArray<T>;
-  min(size: number): PawArray<T>;
-  max(size: number): PawArray<T>;
+  min(size: number, message?: string): PawArray<T>;
+  max(size: number, message?: string): PawArray<T>;
 }
 
 export interface PawObject<T extends Record<string, PawType>>
