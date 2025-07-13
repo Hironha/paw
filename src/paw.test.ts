@@ -42,6 +42,14 @@ describe("paw", () => {
     });
   });
 
+  test("string transform works", () => {
+    const str = paw.string().transform((s) => Number(s));
+    const result = str.safeParse("2");
+    expect(result.ok).toBeTruthy();
+    const value = unwrapOk(result);
+    expect(value).toStrictEqual(2);
+  });
+
   test("number parser works", () => {
     const num = paw.number();
 
@@ -119,6 +127,14 @@ describe("paw", () => {
     });
   });
 
+  test("number transform works", () => {
+    const num = paw.number().transform((n) => n.toString());
+    const result = num.safeParse(2);
+    expect(result.ok).toBeTruthy();
+    const value = unwrapOk(result);
+    expect(value).toStrictEqual("2");
+  });
+
   test("boolean parser works", () => {
     const bool = paw.boolean();
 
@@ -158,6 +174,14 @@ describe("paw", () => {
       kind: "bool",
       message: "boolean should be true",
     });
+  });
+
+  test("boolean transform works", () => {
+    const bool = paw.boolean().transform((b) => b.toString());
+    const result = bool.safeParse(true);
+    expect(result.ok).toBeTruthy();
+    const value = unwrapOk(result);
+    expect(value).toStrictEqual("true");
   });
 
   test("optional parser works", () => {
@@ -346,6 +370,14 @@ describe("paw", () => {
     expect(!strarr.safeParse({}).ok, "value is not an array").toBeTruthy();
   });
 
+  test("array transform works", () => {
+    const arr = paw.array(paw.string()).transform((arr) => arr[0]);
+    const result = arr.safeParse(["test"]);
+    expect(result.ok).toBeTruthy();
+    const value = unwrapOk(result);
+    expect(value).toStrictEqual("test");
+  });
+
   test("retained object parser works", () => {
     const obj = paw.object({ name: paw.string() });
 
@@ -529,6 +561,14 @@ describe("paw", () => {
     });
   });
 
+  test("object transform works", () => {
+    const obj = paw.object({ name: paw.string() }).transform((obj) => obj.name);
+    const result = obj.safeParse({ name: "test" });
+    expect(result.ok).toBeTruthy();
+    const value = unwrapOk(result);
+    expect(value).toStrictEqual("test");
+  });
+
   test("literal parser works", () => {
     const animals = paw.literal(["cat", "dog"]);
     expect(animals.parse("cat")).toStrictEqual("cat");
@@ -563,6 +603,27 @@ describe("paw", () => {
     expect(!result.ok).toBeTruthy();
     const error = unwrapError(result);
     expect(error).toMatchObject({
+      kind: "literal",
+      message: "not a domestic animal",
+    });
+  });
+
+  test("literal transform works", () => {
+    const schema = paw.literal(["cat", "dog"], "not a domestic animal").transform((animal) => {
+      switch (animal) {
+        case "cat":
+          return 1;
+        case "dog":
+          return 2;
+      }
+    });
+    let result = schema.safeParse("cat");
+    expect(result.ok).toBeTruthy();
+    expect(unwrapOk(result)).toStrictEqual(1);
+
+    result = schema.safeParse("tiger");
+    expect(!result.ok).toBeTruthy();
+    expect(unwrapError(result)).toMatchObject({
       kind: "literal",
       message: "not a domestic animal",
     });
@@ -623,6 +684,40 @@ describe("paw", () => {
     expect(error).toMatchObject({
       kind: "union",
       message: "if string then should be nina",
+    });
+  });
+
+  test("union transform works", () => {
+    const schema = paw
+      .union([paw.boolean(), paw.number()], "invalid value")
+      .transform((u) => u.toString());
+    let result = schema.safeParse(true);
+    expect(result.ok).toBeTruthy();
+    expect(unwrapOk(result)).toStrictEqual("true");
+
+    result = schema.safeParse({});
+    expect(!result.ok).toBeTruthy();
+    expect(unwrapError(result)).toMatchObject({
+      kind: "union",
+      message: "invalid value",
+    });
+  });
+
+  test("chain of transforms works", () => {
+    const schema = paw
+      .number("invalid number")
+      .transform(String)
+      .transform(Number)
+      .transform(Boolean);
+    let result = schema.safeParse(2);
+    expect(result.ok).toBeTruthy();
+    expect(unwrapOk(result)).toStrictEqual(true);
+
+    result = schema.safeParse({});
+    expect(!result.ok).toBeTruthy();
+    expect(unwrapError(result)).toMatchObject({
+      kind: "num",
+      message: "invalid number",
     });
   });
 });
