@@ -21,6 +21,7 @@ export type PawType =
   | PawNumber
   | PawBoolean
   | PawUnknown
+  | PawAny
   | PawArray<PawType>
   | PawObject<Record<string, PawType>>
   | PawOptional<any>
@@ -34,6 +35,7 @@ type PawParsedObject<T extends Record<string, PawType>> = {
   [K in keyof T]: PawInfer<T[K]>;
 } & {};
 
+// TODO: change all parsers to support multiple refines
 export type RefineFn<T = any> = (val: unknown) => T;
 
 export interface PawParser<T> {
@@ -126,7 +128,17 @@ export interface PawBoolean
     PawCheckable<PawBoolean, boolean>,
     PawTransformable<boolean> {}
 
-export interface PawUnknown extends PawSchema<"unknown", unknown> {}
+export interface PawUnknown
+  extends PawSchema<"unknown", unknown>,
+    PawRefinable<PawUnknown>,
+    PawCheckable<PawUnknown, unknown>,
+    PawTransformable<unknown> {}
+
+export interface PawAny
+  extends PawSchema<"any", any>,
+    PawRefinable<PawAny>,
+    PawCheckable<PawAny, any>,
+    PawTransformable<any> {}
 
 export interface PawArray<T extends PawType>
   extends PawSchema<"array", PawInfer<T>[]>,
@@ -490,12 +502,79 @@ class PawBooleanParser implements PawBoolean {
 const UNKNOWN = "unknown" as const;
 class PawUnknownParser implements PawUnknown {
   public readonly kind = UNKNOWN;
+  private refineFn: RefineFn | undefined;
+  private checks: PawCheck<unknown>[];
+
+  constructor() {
+    this.checks = [];
+  }
+
+  check(fn: PawCheckFn<any>, message?: string): PawUnknown {
+    this.checks.push(new PawCheck(fn, message));
+    return this;
+  }
+
+  refine<T>(fn: RefineFn<T>): PawUnknown {
+    this.refineFn = fn;
+    return this;
+  }
+
+  transform<U>(fn: PawTransformFn<any, U>): PawTransform<U> {
+    return new PawTransformParser(fn, this);
+  }
 
   parse(val: unknown): unknown {
-    return val;
+    const result = this.safeParse(val);
+    if (!result.ok) {
+      throw new PawParseError(result.error);
+    }
+    return result.value;
   }
 
   safeParse(val: unknown): PawResult<unknown, PawIssue> {
+    if (this.refineFn) {
+      val = this.refineFn(val);
+    }
+    return new PawOk(val);
+  }
+}
+
+const ANY = "any" as const;
+export class PawAnyParser implements PawAny {
+  public readonly kind = ANY;
+  private refineFn: RefineFn | undefined;
+  private checks: PawCheck<any>[];
+
+  constructor() {
+    this.checks = [];
+  }
+
+  check(fn: PawCheckFn<any>, message?: string): PawAny {
+    this.checks.push(new PawCheck(fn, message));
+    return this;
+  }
+
+  refine<T>(fn: RefineFn<T>): PawAny {
+    this.refineFn = fn;
+    return this;
+  }
+
+  transform<U>(fn: PawTransformFn<any, U>): PawTransform<U> {
+    return new PawTransformParser(fn, this);
+  }
+
+  parse(val: unknown): any {
+    const result = this.safeParse(val);
+    if (!result.ok) {
+      throw new PawParseError(result.error);
+    }
+    return result.value;
+  }
+
+  safeParse(val: unknown): PawResult<any, PawIssue> {
+    if (this.refineFn) {
+      val = this.refineFn(val);
+    }
     return new PawOk(val);
   }
 }
@@ -988,6 +1067,10 @@ export function boolean(message?: string): PawBoolean {
 
 export function unknown(): PawUnknown {
   return new PawUnknownParser();
+}
+
+export function any(): PawAny {
+  return new PawAnyParser();
 }
 
 export function array<T extends PawType>(unit: T, message?: string): PawArray<T> {
