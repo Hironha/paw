@@ -35,7 +35,6 @@ type PawParsedObject<T extends Record<string, PawType>> = {
   [K in keyof T]: PawInfer<T[K]>;
 } & {};
 
-// TODO: change all parsers to support multiple refines
 export type RefineFn<T = any> = (val: unknown) => T;
 
 export interface PawParser<T> {
@@ -219,14 +218,15 @@ const OPT = "opt" as const;
 export class PawOptionalParser<T extends PawSchema<string, any>> implements PawOptional<T> {
   public readonly kind = OPT;
   private readonly parser: T;
-  private refineFn: RefineFn | undefined;
+  private refines: RefineFn[];
 
   constructor(parser: T) {
     this.parser = parser;
+    this.refines = [];
   }
 
   refine<U>(fn: RefineFn<U>): PawOptional<T> {
-    this.refineFn = fn;
+    this.refines.push(fn);
     return this;
   }
 
@@ -239,8 +239,8 @@ export class PawOptionalParser<T extends PawSchema<string, any>> implements PawO
   }
 
   safeParse(val: unknown): PawResult<ReturnType<T["parse"]> | null | undefined, PawIssue> {
-    if (this.refineFn) {
-      val = this.refineFn(val);
+    for (const fn of this.refines) {
+      val = fn(val);
     }
 
     if (val === null || val === undefined) {
@@ -256,12 +256,13 @@ class PawStringParser implements PawString {
   public readonly kind = STR;
   private readonly message: string | undefined;
   private reqMessage: string | undefined;
-  private refineFn: RefineFn | undefined;
+  private refines: RefineFn[];
   private checks: PawCheck<string>[];
 
   constructor(message?: string) {
     this.message = message;
     this.checks = [];
+    this.refines = [];
   }
 
   check(fn: PawCheckFn<string>, message?: string): PawString {
@@ -279,7 +280,7 @@ class PawStringParser implements PawString {
   }
 
   refine<T>(fn: RefineFn<T>): PawString {
-    this.refineFn = fn;
+    this.refines.push(fn);
     return this;
   }
 
@@ -296,8 +297,8 @@ class PawStringParser implements PawString {
   }
 
   safeParse(val: unknown): PawResult<string, PawIssue> {
-    if (this.refineFn) {
-      val = this.refineFn(val);
+    for (const fn of this.refines) {
+      val = fn(val);
     }
 
     if (val === null || val === undefined) {
@@ -330,12 +331,13 @@ class PawNumberParser implements PawNumber {
   private intcfg: { value: boolean; message?: string } = { value: false };
   private mincfg: { value: number; message?: string } | undefined;
   private maxcfg: { value: number; message?: string } | undefined;
-  private refineFn: RefineFn | undefined;
+  private refines: RefineFn[];
   private checks: PawCheck<number>[];
 
   constructor(message?: string) {
     this.message = message;
     this.checks = [];
+    this.refines = [];
   }
 
   check(fn: PawCheckFn<number>, message?: string): PawNumber {
@@ -368,7 +370,7 @@ class PawNumberParser implements PawNumber {
   }
 
   refine<T>(fn: RefineFn<T>): PawNumber {
-    this.refineFn = fn;
+    this.refines.push(fn);
     return this;
   }
 
@@ -385,8 +387,8 @@ class PawNumberParser implements PawNumber {
   }
 
   safeParse(val: unknown): PawResult<number, PawIssue> {
-    if (this.refineFn) {
-      val = this.refineFn(val);
+    for (const fn of this.refines) {
+      val = fn(val);
     }
 
     if (val === null || val === undefined) {
@@ -433,12 +435,13 @@ class PawBooleanParser implements PawBoolean {
   public readonly kind = BOOL;
   private readonly message: string | undefined;
   private reqMessage: string | undefined;
-  private refineFn: RefineFn | undefined;
+  private refines: RefineFn[];
   private checks: PawCheck<boolean>[];
 
   constructor(message?: string) {
     this.message = message;
     this.checks = [];
+    this.refines = [];
   }
 
   check(fn: PawCheckFn<boolean>, message?: string): PawBoolean {
@@ -456,7 +459,7 @@ class PawBooleanParser implements PawBoolean {
   }
 
   refine<T>(fn: RefineFn<T>): PawBoolean {
-    this.refineFn = fn;
+    this.refines.push(fn);
     return this;
   }
 
@@ -473,8 +476,8 @@ class PawBooleanParser implements PawBoolean {
   }
 
   safeParse(val: unknown): PawResult<boolean, PawIssue> {
-    if (this.refineFn) {
-      val = this.refineFn(val);
+    for (const fn of this.refines) {
+      val = fn(val);
     }
 
     if (val === null || val === undefined) {
@@ -502,10 +505,11 @@ class PawBooleanParser implements PawBoolean {
 const UNKNOWN = "unknown" as const;
 class PawUnknownParser implements PawUnknown {
   public readonly kind = UNKNOWN;
-  private refineFn: RefineFn | undefined;
+  private refines: RefineFn[];
   private checks: PawCheck<unknown>[];
 
   constructor() {
+    this.refines = [];
     this.checks = [];
   }
 
@@ -515,7 +519,7 @@ class PawUnknownParser implements PawUnknown {
   }
 
   refine<T>(fn: RefineFn<T>): PawUnknown {
-    this.refineFn = fn;
+    this.refines.push(fn);
     return this;
   }
 
@@ -532,8 +536,8 @@ class PawUnknownParser implements PawUnknown {
   }
 
   safeParse(val: unknown): PawResult<unknown, PawIssue> {
-    if (this.refineFn) {
-      val = this.refineFn(val);
+    for (const fn of this.refines) {
+      val = fn(val);
     }
     return new PawOk(val);
   }
@@ -542,10 +546,11 @@ class PawUnknownParser implements PawUnknown {
 const ANY = "any" as const;
 export class PawAnyParser implements PawAny {
   public readonly kind = ANY;
-  private refineFn: RefineFn | undefined;
+  private refines: RefineFn[];
   private checks: PawCheck<any>[];
 
   constructor() {
+    this.refines = [];
     this.checks = [];
   }
 
@@ -555,7 +560,7 @@ export class PawAnyParser implements PawAny {
   }
 
   refine<T>(fn: RefineFn<T>): PawAny {
-    this.refineFn = fn;
+    this.refines.push(fn);
     return this;
   }
 
@@ -572,8 +577,8 @@ export class PawAnyParser implements PawAny {
   }
 
   safeParse(val: unknown): PawResult<any, PawIssue> {
-    if (this.refineFn) {
-      val = this.refineFn(val);
+    for (const fn of this.refines) {
+      val = fn(val);
     }
     return new PawOk(val);
   }
@@ -588,7 +593,7 @@ class PawArrayParser<T extends PawType> implements PawArray<T> {
   private reqMessage: string | undefined;
   private maxcfg: { value: number; message?: string } | undefined;
   private mincfg: { value: number; message?: string } | undefined;
-  private refineFn: RefineFn | undefined;
+  private refines: RefineFn[];
   private checks: PawCheck<PawInfer<T>[]>[];
 
   constructor(unit: T, message?: string) {
@@ -596,6 +601,7 @@ class PawArrayParser<T extends PawType> implements PawArray<T> {
     this.message = message;
     this.isImmediate = false;
     this.checks = [];
+    this.refines = [];
   }
 
   immediate(): PawArray<T> {
@@ -628,7 +634,7 @@ class PawArrayParser<T extends PawType> implements PawArray<T> {
   }
 
   refine<U>(fn: RefineFn<U>): PawArray<T> {
-    this.refineFn = fn;
+    this.refines.push(fn);
     return this;
   }
 
@@ -653,8 +659,8 @@ class PawArrayParser<T extends PawType> implements PawArray<T> {
   }
 
   private safeParseImmediate(val: unknown): PawResult<PawInfer<T>[], PawIssue> {
-    if (this.refineFn) {
-      val = this.refineFn(val);
+    for (const fn of this.refines) {
+      val = fn(val);
     }
 
     const arr = this.parseArray(val);
@@ -682,8 +688,8 @@ class PawArrayParser<T extends PawType> implements PawArray<T> {
   }
 
   private safeParseRetained(val: unknown): PawResult<PawInfer<T>[], PawIssue> {
-    if (this.refineFn) {
-      val = this.refineFn(val);
+    for (const fn of this.refines) {
+      val = fn(val);
     }
 
     const arr = this.parseArray(val);
@@ -760,13 +766,14 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
   private readonly message: string | undefined;
   private isImmediate: boolean;
   private reqMessage: string | undefined;
-  private refineFn: RefineFn | undefined;
+  private refines: RefineFn[];
   private checks: PawCheck<PawParsedObject<T>>[];
 
   constructor(fields: T, message?: string) {
     this.fields = fields;
     this.message = message;
     this.isImmediate = false;
+    this.refines = [];
     this.checks = [];
   }
 
@@ -790,7 +797,7 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
   }
 
   refine<U>(fn: RefineFn<U>): PawObject<T> {
-    this.refineFn = fn;
+    this.refines.push(fn);
     return this;
   }
 
@@ -815,8 +822,8 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
   }
 
   private safeParseImmediate(val: unknown): PawResult<PawParsedObject<T>, PawIssue> {
-    if (this.refineFn) {
-      val = this.refineFn(val);
+    for (const fn of this.refines) {
+      val = fn(val);
     }
 
     const obj = this.parseObject(val);
@@ -844,8 +851,8 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
   }
 
   private safeParseRetained(val: unknown): PawResult<PawParsedObject<T>, PawIssue> {
-    if (this.refineFn) {
-      val = this.refineFn(val);
+    for (const fn of this.refines) {
+      val = fn(val);
     }
 
     const obj = this.parseObject(val);
@@ -908,12 +915,13 @@ class PawLiteralParser<const T extends string | number | boolean> implements Paw
   private readonly values: T[];
   private readonly message: string | undefined;
   private reqMessage: string | undefined;
-  private refineFn: RefineFn | undefined;
+  private refines: RefineFn[];
   private checks: PawCheck<T>[];
 
   constructor(values: T[], message?: string) {
     this.values = values;
     this.message = message;
+    this.refines = [];
     this.checks = [];
   }
 
@@ -932,7 +940,7 @@ class PawLiteralParser<const T extends string | number | boolean> implements Paw
   }
 
   refine<U>(fn: RefineFn<U>): PawLiteral<T> {
-    this.refineFn = fn;
+    this.refines.push(fn);
     return this;
   }
 
@@ -949,8 +957,8 @@ class PawLiteralParser<const T extends string | number | boolean> implements Paw
   }
 
   safeParse(val: unknown): PawResult<T, PawIssue> {
-    if (this.refineFn) {
-      val = this.refineFn(val);
+    for (const fn of this.refines) {
+      val = fn(val);
     }
 
     if (val === null || val === undefined) {
@@ -983,12 +991,13 @@ class PawUnionParser<T extends Array<PawSchema<any, any>>> implements PawUnion<T
   private readonly schemas: T;
   private readonly message: string | undefined;
   private reqMessage: string | undefined;
-  private refineFn: RefineFn | undefined;
+  private refines: RefineFn[];
   private checks: PawCheck<PawInfer<T[number]>>[];
 
   constructor(schemas: T, message?: string) {
     this.schemas = schemas;
     this.message = message;
+    this.refines = [];
     this.checks = [];
   }
 
@@ -1007,7 +1016,7 @@ class PawUnionParser<T extends Array<PawSchema<any, any>>> implements PawUnion<T
   }
 
   refine<U>(fn: RefineFn<U>): PawUnion<T> {
-    this.refineFn = fn;
+    this.refines.push(fn);
     return this;
   }
 
@@ -1024,8 +1033,8 @@ class PawUnionParser<T extends Array<PawSchema<any, any>>> implements PawUnion<T
   }
 
   safeParse(val: unknown): PawResult<PawInfer<T[number]>, PawIssue> {
-    if (this.refineFn) {
-      val = this.refineFn(val);
+    for (const fn of this.refines) {
+      val = fn(val);
     }
 
     for (const schema of this.schemas) {
