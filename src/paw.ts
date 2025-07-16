@@ -165,6 +165,10 @@ export interface PawObject<T extends Record<string, PawType>>
    * error is encountered.
    */
   immediate(): PawObject<T>;
+  /**
+   * Set parser to include only defined properties in parsed object.
+   */
+  strict(): PawObject<T>;
 }
 
 export interface PawLiteral<T extends string | number | boolean>
@@ -768,6 +772,7 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
   private reqMessage: string | undefined;
   private refines: RefineFn[];
   private checks: PawCheck<PawParsedObject<T>>[];
+  private isStrict: boolean;
 
   constructor(fields: T, message?: string) {
     this.fields = fields;
@@ -775,6 +780,7 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
     this.isImmediate = false;
     this.refines = [];
     this.checks = [];
+    this.isStrict = false;
   }
 
   optional(): PawOptional<PawObject<T>> {
@@ -805,6 +811,11 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
     return new PawTransformParser(fn, this);
   }
 
+  strict(): PawObject<T> {
+    this.isStrict = true;
+    return this;
+  }
+
   parse(val: unknown): PawParsedObject<T> {
     const result = this.safeParse(val);
     if (!result.ok) {
@@ -813,6 +824,7 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
     return result.value;
   }
 
+  // TODO: refactor how strict parsing in handled to remove code duplication
   safeParse(val: unknown): PawResult<PawParsedObject<T>, PawIssue> {
     if (this.isImmediate) {
       return this.safeParseImmediate(val);
@@ -822,26 +834,40 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
   }
 
   private safeParseImmediate(val: unknown): PawResult<PawParsedObject<T>, PawIssue> {
-    for (const fn of this.refines) {
-      val = fn(val);
-    }
-
+    val = this.refined(val);
     const obj = this.parseObject(val);
     if (!obj.ok) {
       return obj;
     }
 
-    for (const k in this.fields) {
-      const v = obj.value[k];
-      const parsed = this.fields[k]!.safeParse(v);
-      if (!parsed.ok) {
-        const message = this.message ?? `Field '${k}' failed object schema validation`;
-        const issue: PawObjectFieldIssue = { field: k, issue: parsed.error };
-        return new PawError(new PawObjectSchemaIssue(message, [issue]));
+    let parsed: PawParsedObject<T>;
+    if (this.isStrict) {
+      const strict: Record<string, any> = {};
+      for (const k in this.fields) {
+        const v = obj.value[k];
+        const result = this.fields[k]!.safeParse(v);
+        if (!result.ok) {
+          const message = this.message ?? `Field '${k}' failed object schema validation`;
+          const issue: PawObjectFieldIssue = { field: k, issue: result.error };
+          return new PawError(new PawObjectSchemaIssue(message, [issue]));
+        }
+        strict[k] = result.value;
       }
+      parsed = strict as PawParsedObject<T>;
+    } else {
+      for (const k in this.fields) {
+        const v = obj.value[k];
+        const result = this.fields[k]!.safeParse(v);
+        if (!result.ok) {
+          const message = this.message ?? `Field '${k}' failed object schema validation`;
+          const issue: PawObjectFieldIssue = { field: k, issue: result.error };
+          return new PawError(new PawObjectSchemaIssue(message, [issue]));
+        }
+      }
+
+      parsed = obj.value as PawParsedObject<T>;
     }
 
-    const parsed = obj.value as PawParsedObject<T>;
     const checkResult = this.runChecks(parsed);
     if (!checkResult.ok) {
       return checkResult;
@@ -851,22 +877,35 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
   }
 
   private safeParseRetained(val: unknown): PawResult<PawParsedObject<T>, PawIssue> {
-    for (const fn of this.refines) {
-      val = fn(val);
-    }
-
+    val = this.refined(val);
     const obj = this.parseObject(val);
     if (!obj.ok) {
       return obj;
     }
 
     const issues: PawObjectFieldIssue[] = [];
-    for (const k in this.fields) {
-      const v = obj.value[k];
-      const parsed = this.fields[k]!.safeParse(v);
-      if (!parsed.ok) {
-        issues.push({ field: k, issue: parsed.error });
+    let parsed: PawParsedObject<T>;
+    if (this.isStrict) {
+      const strict: Record<string, any> = {};
+      for (const k in this.fields) {
+        const v = obj.value[k];
+        const result = this.fields[k]!.safeParse(v);
+        if (!result.ok) {
+          issues.push({ field: k, issue: result.error });
+        } else {
+          strict[k] = result.value;
+        }
       }
+      parsed = strict as PawParsedObject<T>;
+    } else {
+      for (const k in this.fields) {
+        const v = obj.value[k];
+        const parsed = this.fields[k]!.safeParse(v);
+        if (!parsed.ok) {
+          issues.push({ field: k, issue: parsed.error });
+        }
+      }
+      parsed = obj.value as PawParsedObject<T>;
     }
 
     if (issues.length > 0) {
@@ -874,13 +913,19 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
       return new PawError(new PawObjectSchemaIssue(message, issues));
     }
 
-    const parsed = obj.value as PawParsedObject<T>;
     const checkResult = this.runChecks(parsed);
     if (!checkResult.ok) {
       return checkResult;
     }
 
     return new PawOk(parsed);
+  }
+
+  private refined(val: unknown): unknown {
+    for (const fn of this.refines) {
+      val = fn(val);
+    }
+    return val;
   }
 
   private parseObject(val: unknown): PawResult<Record<string, unknown>, PawIssue> {

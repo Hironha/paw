@@ -569,6 +569,18 @@ describe("paw", () => {
     expect(value).toStrictEqual("test");
   });
 
+  test("object strict works", () => {
+    const nonstrict = paw.object({ name: paw.string() });
+    const nonstrictResult = nonstrict.safeParse({ name: "string", age: 2 });
+    expect(nonstrictResult.ok).toBeTruthy();
+    expect(unwrapOk(nonstrictResult)).toStrictEqual({ name: "string", age: 2 });
+
+    const strict = paw.object({ name: paw.string() }).strict();
+    const strictResult = strict.safeParse({ name: "string", age: 2 });
+    expect(strictResult.ok).toBeTruthy();
+    expect(unwrapOk(strictResult)).toStrictEqual({ name: "string" });
+  });
+
   test("literal parser works", () => {
     const animals = paw.literal(["cat", "dog"]);
     expect(animals.parse("cat")).toStrictEqual("cat");
