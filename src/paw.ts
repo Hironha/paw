@@ -90,10 +90,10 @@ interface PawTransformable<T> {
   transform<U>(fn: PawTransformFn<T, U>): PawTransform<U>;
 }
 
-export interface PawTransform<T> extends PawSchema<"trans", T>, PawTransformable<T> {}
+export interface PawTransform<T> extends PawSchema<"transform", T>, PawTransformable<T> {}
 
 export interface PawOptional<S extends PawSchema<string, any>>
-  extends PawSchema<"opt", ReturnType<S["parse"]> | null | undefined> {}
+  extends PawSchema<"option", ReturnType<S["parse"]> | null | undefined> {}
 
 export interface PawMaybeOptional<S extends PawSchema<string, any>> {
   /** Allow value to be `null` or `undefined` */
@@ -103,14 +103,14 @@ export interface PawMaybeOptional<S extends PawSchema<string, any>> {
 }
 
 export interface PawString
-  extends PawSchema<"str", string>,
+  extends PawSchema<"string", string>,
     PawRefinable<PawString>,
     PawMaybeOptional<PawString>,
     PawCheckable<PawString, string>,
     PawTransformable<string> {}
 
 export interface PawNumber
-  extends PawSchema<"num", number>,
+  extends PawSchema<"number", number>,
     PawRefinable<PawNumber>,
     PawMaybeOptional<PawNumber>,
     PawCheckable<PawNumber, number>,
@@ -121,7 +121,7 @@ export interface PawNumber
 }
 
 export interface PawBoolean
-  extends PawSchema<"bool", boolean>,
+  extends PawSchema<"boolean", boolean>,
     PawRefinable<PawBoolean>,
     PawMaybeOptional<PawBoolean>,
     PawCheckable<PawBoolean, boolean>,
@@ -155,7 +155,7 @@ export interface PawArray<T extends PawType>
 }
 
 export interface PawObject<T extends Record<string, PawType>>
-  extends PawSchema<"obj", PawParsedObject<T>>,
+  extends PawSchema<"object", PawParsedObject<T>>,
     PawRefinable<PawObject<T>>,
     PawMaybeOptional<PawObject<T>>,
     PawCheckable<PawObject<T>, PawParsedObject<T>>,
@@ -185,9 +185,9 @@ export interface PawUnion<T extends Array<PawSchema<any, any>>>
     PawCheckable<PawUnion<T>, PawInfer<T[number]>>,
     PawTransformable<PawInfer<T[number]>> {}
 
-const TRANS = "trans";
+const TRANSFORM = "transform";
 class PawTransformParser<T, S extends PawSchema<string, any>> implements PawTransform<T> {
-  public readonly kind = TRANS;
+  public readonly kind = TRANSFORM;
   private readonly fn: PawTransformFn<ReturnType<S["parse"]>, T>;
   private readonly schema: S;
 
@@ -218,9 +218,9 @@ class PawTransformParser<T, S extends PawSchema<string, any>> implements PawTran
   }
 }
 
-const OPT = "opt" as const;
+const OPTION = "option" as const;
 export class PawOptionalParser<T extends PawSchema<string, any>> implements PawOptional<T> {
-  public readonly kind = OPT;
+  public readonly kind = OPTION;
   private readonly parser: T;
   private refines: RefineFn[];
 
@@ -255,9 +255,9 @@ export class PawOptionalParser<T extends PawSchema<string, any>> implements PawO
   }
 }
 
-const STR = "str" as const;
+const STRING = "string" as const;
 class PawStringParser implements PawString {
-  public readonly kind = STR;
+  public readonly kind = STRING;
   private readonly message: string | undefined;
   private reqMessage: string | undefined;
   private refines: RefineFn[];
@@ -327,9 +327,9 @@ class PawStringParser implements PawString {
   }
 }
 
-const NUM = "num" as const;
+const NUMBER = "number" as const;
 class PawNumberParser implements PawNumber {
-  public readonly kind = NUM;
+  public readonly kind = NUMBER;
   private readonly message: string | undefined;
   private reqMessage: string | undefined;
   private intcfg: { value: boolean; message?: string } = { value: false };
@@ -434,9 +434,9 @@ class PawNumberParser implements PawNumber {
   }
 }
 
-const BOOL = "bool" as const;
+const BOOLEAN = "boolean" as const;
 class PawBooleanParser implements PawBoolean {
-  public readonly kind = BOOL;
+  public readonly kind = BOOLEAN;
   private readonly message: string | undefined;
   private reqMessage: string | undefined;
   private refines: RefineFn[];
@@ -763,9 +763,9 @@ class PawArrayParser<T extends PawType> implements PawArray<T> {
   }
 }
 
-const OBJ = "obj" as const;
+const OBJECT = "object" as const;
 class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T> {
-  public readonly kind = OBJ;
+  public readonly kind = OBJECT;
   private readonly fields: T;
   private readonly message: string | undefined;
   private isImmediate: boolean;

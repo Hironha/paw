@@ -23,7 +23,7 @@ interface PawIssueBase {
   readonly message: string;
 }
 
-const REQUIRED = "req" as const;
+const REQUIRED = "required" as const;
 export class PawRequiredIssue implements PawIssueBase {
   public readonly kind = REQUIRED;
   public message: string;
@@ -33,9 +33,9 @@ export class PawRequiredIssue implements PawIssueBase {
   }
 }
 
-const STR = "str" as const;
+const STRING = "string" as const;
 export class PawStringIssue implements PawIssueBase {
-  public readonly kind = STR;
+  public readonly kind = STRING;
   public message: string;
 
   constructor(message: string) {
@@ -43,9 +43,9 @@ export class PawStringIssue implements PawIssueBase {
   }
 }
 
-const NUM = "num" as const;
+const NUMBER = "number" as const;
 export class PawNumberIssue implements PawIssueBase {
-  public readonly kind = NUM;
+  public readonly kind = NUMBER;
   public message: string;
 
   constructor(message: string) {
@@ -53,9 +53,9 @@ export class PawNumberIssue implements PawIssueBase {
   }
 }
 
-const BOOL = "bool" as const;
+const BOOLEAN = "boolean" as const;
 export class PawBooleanIssue implements PawIssueBase {
-  public readonly kind = BOOL;
+  public readonly kind = BOOLEAN;
   public message: string;
 
   constructor(message: string) {
@@ -63,9 +63,9 @@ export class PawBooleanIssue implements PawIssueBase {
   }
 }
 
-const ARR = "arr-type" as const;
+const ARRAY = "array-type" as const;
 export class PawArrayTypeIssue implements PawIssueBase {
-  public readonly kind = ARR;
+  public readonly kind = ARRAY;
   public message: string;
 
   constructor(message: string) {
@@ -78,9 +78,9 @@ export type PawArrayIndexIssue = {
   issue: PawIssue;
 };
 
-const ARR_SCHEMA = "arr-schema";
+const ARRAY_SCHEMA = "array-schema";
 export class PawArraySchemaIssue implements PawIssueBase {
-  public readonly kind = ARR_SCHEMA;
+  public readonly kind = ARRAY_SCHEMA;
   public readonly message: string;
   public readonly issues: PawArrayIndexIssue[];
 
@@ -90,9 +90,9 @@ export class PawArraySchemaIssue implements PawIssueBase {
   }
 }
 
-const OBJ_TYPE = "obj-type";
+const OBJECT_TYPE = "object-type";
 export class PawObjectTypeIssue implements PawIssueBase {
-  public readonly kind = OBJ_TYPE;
+  public readonly kind = OBJECT_TYPE;
   public readonly message: string;
 
   constructor(message: string) {
@@ -105,9 +105,9 @@ export type PawObjectFieldIssue = {
   issue: PawIssue;
 };
 
-const OBJ_SCHEMA = "obj-schema" as const;
+const OBJECT_SCHEMA = "object-schema" as const;
 export class PawObjectSchemaIssue implements PawIssueBase {
-  public readonly kind = OBJ_SCHEMA;
+  public readonly kind = OBJECT_SCHEMA;
   public readonly message: string;
   public readonly issues: PawObjectFieldIssue[];
 

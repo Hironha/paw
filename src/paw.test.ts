@@ -13,12 +13,15 @@ describe("paw", () => {
   });
 
   test("string parse error returns correct string error", () => {
-    const str = paw.string();
+    const str = paw.string("invalid string");
     const result = str.safeParse(2);
     expect(!result.ok, "2 is not a string").toBeTruthy();
 
     const error = unwrapError(result);
-    expect(error.kind).toStrictEqual("str");
+    expect(error).toMatchObject({
+      kind: "string",
+      message: "invalid string",
+    });
   });
 
   test("string refine works", () => {
@@ -37,7 +40,7 @@ describe("paw", () => {
     result = str.safeParse("test");
     const error = unwrapError(result);
     expect(error).toMatchObject({
-      kind: "str",
+      kind: "string",
       message: "invalid pattern",
     });
   });
@@ -61,12 +64,15 @@ describe("paw", () => {
   });
 
   test("number parse error returns  correct number error", () => {
-    const num = paw.number();
+    const num = paw.number("invalid number");
     const result = num.safeParse("test");
     expect(!result.ok, "test is not a number").toBeTruthy();
 
     const error = unwrapError(result);
-    expect(error.kind).toStrictEqual("num");
+    expect(error).toMatchObject({
+      kind: "number",
+      message: "invalid number",
+    });
   });
 
   test("number min works", () => {
@@ -122,7 +128,7 @@ describe("paw", () => {
     expect(!result.ok).toBeTruthy();
     const error = unwrapError(result);
     expect(error).toMatchObject({
-      kind: "num",
+      kind: "number",
       message: "not a minor age",
     });
   });
@@ -146,12 +152,15 @@ describe("paw", () => {
   });
 
   test("boolean parse error returns boolean error", () => {
-    const bool = paw.boolean();
+    const bool = paw.boolean("invalid boolean");
     const result = bool.safeParse("test");
     expect(!result.ok, "test is not a boolean").toBeTruthy();
 
     const error = unwrapError(result);
-    expect(error.kind).toStrictEqual("bool");
+    expect(error).toMatchObject({
+      kind: "boolean",
+      message: "invalid boolean",
+    });
   });
 
   test("boolean refine works", () => {
@@ -171,7 +180,7 @@ describe("paw", () => {
     expect(!result.ok).toBeTruthy();
     const error = unwrapError(result);
     expect(error).toMatchObject({
-      kind: "bool",
+      kind: "boolean",
       message: "boolean should be true",
     });
   });
@@ -193,12 +202,15 @@ describe("paw", () => {
   });
 
   test("optional parse error forwards error", () => {
-    const optstr = paw.string().optional();
+    const optstr = paw.string("invalid string").optional();
     const result = optstr.safeParse(2);
     expect(!result.ok, "2 is not an optional string");
 
     const error = unwrapError(result);
-    expect(error.kind).toStrictEqual("str");
+    expect(error).toMatchObject({
+      kind: "string",
+      message: "invalid string",
+    });
   });
 
   test("optional refine works", () => {
@@ -247,7 +259,7 @@ describe("paw", () => {
     expect(!result.ok).toBeTruthy();
     const error = unwrapError(result);
     expect(error).toMatchObject({
-      kind: "arr-type",
+      kind: "array-type",
       message: "first should be nina",
     });
   });
@@ -262,7 +274,7 @@ describe("paw", () => {
     expect(!result.ok).toBeTruthy();
     const error = unwrapError(result);
     expect(error).toMatchObject({
-      kind: "arr-type",
+      kind: "array-type",
       message: "first should be nina",
     });
   });
@@ -274,7 +286,7 @@ describe("paw", () => {
 
     const error = unwrapError(result);
     expect(error).toMatchObject({
-      kind: "arr-type",
+      kind: "array-type",
       message: "expected array",
     });
   });
@@ -286,7 +298,7 @@ describe("paw", () => {
 
     const error = unwrapError(result);
     expect(error).toMatchObject({
-      kind: "arr-type",
+      kind: "array-type",
       message: "expected array",
     });
   });
@@ -298,12 +310,12 @@ describe("paw", () => {
 
     let error = unwrapError(result);
     expect(error).toMatchObject({
-      kind: "arr-schema",
+      kind: "array-schema",
       issues: [
         {
           idx: 1,
           issue: {
-            kind: "str",
+            kind: "string",
             message: "expected string",
           },
         },
@@ -313,19 +325,19 @@ describe("paw", () => {
     result = strarr.safeParse([1, 2]);
     error = unwrapError(result);
     expect(error).toMatchObject({
-      kind: "arr-schema",
+      kind: "array-schema",
       issues: [
         {
           idx: 0,
           issue: {
-            kind: "str",
+            kind: "string",
             message: "expected string",
           },
         },
         {
           idx: 1,
           issue: {
-            kind: "str",
+            kind: "string",
             message: "expected string",
           },
         },
@@ -392,7 +404,7 @@ describe("paw", () => {
     expect(!result.ok, "test is not an object").toBeTruthy();
 
     const error = unwrapError(result);
-    expect(error.kind).toStrictEqual("obj-type");
+    expect(error.kind).toStrictEqual("object-type");
   });
 
   test("immediate object parse error returns object schema error", () => {
@@ -401,13 +413,13 @@ describe("paw", () => {
     expect(!result.ok, "name property is not a string").toBeTruthy();
 
     const error = unwrapError(result);
-    expect(error.kind).toStrictEqual("obj-schema");
-    const issues = error.kind === "obj-schema" ? error.issues : undefined;
+    expect(error.kind).toStrictEqual("object-schema");
+    const issues = error.kind === "object-schema" ? error.issues : undefined;
     expect(issues).toMatchObject([
       {
         field: "name",
         issue: {
-          kind: "str",
+          kind: "string",
           message: "name error",
         },
       },
@@ -425,20 +437,20 @@ describe("paw", () => {
     result = obj.safeParse({ name: 2 });
     expect(!result.ok).toBeTruthy();
     expect(unwrapError(result)).toMatchObject({
-      kind: "obj-schema",
+      kind: "object-schema",
       message: expect.any(String),
       issues: [
         {
           field: "name",
           issue: {
-            kind: "str",
+            kind: "string",
             message: "name error",
           },
         },
         {
           field: "age",
           issue: {
-            kind: "req",
+            kind: "required",
             message: "age required",
           },
         },
@@ -465,13 +477,13 @@ describe("paw", () => {
     const result = obj.safeParse({ name: 2, traits: {} });
     expect(!result.ok).toBeTruthy();
     expect(unwrapError(result)).toMatchObject({
-      kind: "obj-schema",
+      kind: "object-schema",
       message: "invalid object",
       issues: [
         {
           field: "name",
           issue: {
-            kind: "str",
+            kind: "string",
             message: "name error",
           },
         },
@@ -496,26 +508,26 @@ describe("paw", () => {
     const result = obj.safeParse({ name: 2, traits: {} });
     expect(!result.ok).toBeTruthy();
     expect(unwrapError(result)).toMatchObject({
-      kind: "obj-schema",
+      kind: "object-schema",
       message: "invalid object",
       issues: [
         {
           field: "name",
           issue: {
-            kind: "str",
+            kind: "string",
             message: "name error",
           },
         },
         {
           field: "traits",
           issue: {
-            kind: "obj-schema",
+            kind: "object-schema",
             message: "invalid traits",
             issues: [
               {
                 field: "height",
                 issue: {
-                  kind: "req",
+                  kind: "required",
                   message: "height required",
                 },
               },
@@ -539,7 +551,7 @@ describe("paw", () => {
     expect(!result.ok).toBeTruthy();
     const error = unwrapError(result);
     expect(error).toMatchObject({
-      kind: "obj-type",
+      kind: "object-type",
       message: "name and lastname should be different",
     });
   });
@@ -556,7 +568,7 @@ describe("paw", () => {
     expect(!result.ok).toBeTruthy();
     const error = unwrapError(result);
     expect(error).toMatchObject({
-      kind: "obj-type",
+      kind: "object-type",
       message: "name and lastname should be different",
     });
   });
@@ -728,7 +740,7 @@ describe("paw", () => {
     result = schema.safeParse({});
     expect(!result.ok).toBeTruthy();
     expect(unwrapError(result)).toMatchObject({
-      kind: "num",
+      kind: "number",
       message: "invalid number",
     });
   });
