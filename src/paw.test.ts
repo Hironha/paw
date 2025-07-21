@@ -197,8 +197,16 @@ describe("paw", () => {
     const optstr = paw.string().optional();
 
     expect(optstr.parse("test")).toStrictEqual("test");
-    expect(optstr.parse(null)).toStrictEqual(null);
+    expect(optstr.safeParse(null).ok).toBeFalsy();
     expect(optstr.parse(undefined)).toStrictEqual(undefined);
+  });
+
+  test("nullable parser works", () => {
+    const nullablestr = paw.string().nullable();
+
+    expect(nullablestr.parse("test")).toStrictEqual("test");
+    expect(nullablestr.safeParse(undefined).ok).toBeFalsy();
+    expect(nullablestr.parse(null)).toStrictEqual(null);
   });
 
   test("optional parse error forwards error", () => {
@@ -222,7 +230,7 @@ describe("paw", () => {
     expect(optstr.parse("test")).toStrictEqual("test");
     expect(optstr.parse(2)).toStrictEqual("2");
     expect(optstr.parse(undefined)).toStrictEqual(undefined);
-    expect(optstr.parse(null)).toStrictEqual(null);
+    expect(optstr.safeParse(null).ok).toBeFalsy();
     expect(!optstr.safeParse(true).ok, "true is not a optional string");
   });
 
@@ -368,7 +376,7 @@ describe("paw", () => {
 
     expect(strarr.parse(["test"])).toMatchObject(["test"]);
     expect(strarr.parse(undefined)).toStrictEqual(undefined);
-    expect(strarr.parse(null)).toStrictEqual(null);
+    expect(strarr.safeParse(null).ok).toBeFalsy();
     expect(!strarr.safeParse([2]).ok, "arr includes non string value").toBeTruthy();
     expect(!strarr.safeParse({}).ok, "value is not an array").toBeTruthy();
   });

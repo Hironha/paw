@@ -25,6 +25,7 @@ export type PawType =
   | PawArray<PawType>
   | PawObject<Record<string, PawType>>
   | PawOptional<any>
+  | PawNullable<any>
   | PawLiteral<string>
   | PawUnion<Array<PawType>>
   | PawTransform<any>;
@@ -93,28 +94,44 @@ interface PawTransformable<T> {
 export interface PawTransform<T> extends PawSchema<"transform", T>, PawTransformable<T> {}
 
 export interface PawOptional<S extends PawSchema<string, any>>
-  extends PawSchema<"option", ReturnType<S["parse"]> | null | undefined> {}
+  extends PawSchema<"optional", ReturnType<S["parse"]> | undefined> {}
 
-export interface PawMaybeOptional<S extends PawSchema<string, any>> {
-  /** Allow value to be `null` or `undefined` */
-  optional(): PawOptional<S>;
+export interface PawRequireable<S extends PawSchema<string, any>> {
   /** Set the required error message. Does NOT change any validations or type schema. */
   required(message: string): S;
+}
+
+export interface PawMaybeOptional<S extends PawSchema<string, any>> {
+  /** Allow value to be `undefined` */
+  optional(): PawOptional<S>;
+}
+
+export interface PawNullable<S extends PawSchema<string, any>>
+  extends PawSchema<"nullable", ReturnType<S["parse"]> | null>,
+    PawMaybeOptional<PawNullable<S>> {}
+
+export interface PawMaybeNullable<S extends PawSchema<string, any>> {
+  /** Allow value to be `null` */
+  nullable(): PawNullable<S>;
 }
 
 export interface PawString
   extends PawSchema<"string", string>,
     PawRefinable<PawString>,
     PawMaybeOptional<PawString>,
+    PawMaybeNullable<PawString>,
     PawCheckable<PawString, string>,
-    PawTransformable<string> {}
+    PawTransformable<string>,
+    PawRequireable<PawString> {}
 
 export interface PawNumber
   extends PawSchema<"number", number>,
     PawRefinable<PawNumber>,
     PawMaybeOptional<PawNumber>,
+    PawMaybeNullable<PawNumber>,
     PawCheckable<PawNumber, number>,
-    PawTransformable<number> {
+    PawTransformable<number>,
+    PawRequireable<PawNumber> {
   int(message?: string): PawNumber;
   min(val: number, message?: string): PawNumber;
   max(val: number, message?: string): PawNumber;
@@ -124,8 +141,10 @@ export interface PawBoolean
   extends PawSchema<"boolean", boolean>,
     PawRefinable<PawBoolean>,
     PawMaybeOptional<PawBoolean>,
+    PawMaybeNullable<PawBoolean>,
     PawCheckable<PawBoolean, boolean>,
-    PawTransformable<boolean> {}
+    PawTransformable<boolean>,
+    PawRequireable<PawBoolean> {}
 
 export interface PawUnknown
   extends PawSchema<"unknown", unknown>,
@@ -143,8 +162,10 @@ export interface PawArray<T extends PawType>
   extends PawSchema<"array", PawInfer<T>[]>,
     PawRefinable<PawArray<T>>,
     PawMaybeOptional<PawArray<T>>,
+    PawMaybeNullable<PawArray<T>>,
     PawCheckable<PawArray<T>, PawInfer<T>[]>,
-    PawTransformable<PawInfer<T>[]> {
+    PawTransformable<PawInfer<T>[]>,
+    PawRequireable<PawArray<T>> {
   /**
    * Set array parsing to immediate mode. Immediate mode stops parsing the object when the first
    * error is encountered.
@@ -158,8 +179,10 @@ export interface PawObject<T extends Record<string, PawType>>
   extends PawSchema<"object", PawParsedObject<T>>,
     PawRefinable<PawObject<T>>,
     PawMaybeOptional<PawObject<T>>,
+    PawMaybeNullable<PawObject<T>>,
     PawCheckable<PawObject<T>, PawParsedObject<T>>,
-    PawTransformable<T> {
+    PawTransformable<T>,
+    PawRequireable<PawObject<T>> {
   /**
    * Set object parsing to immediate mode. Immediate mode stops parsing the object when the first
    * error is encountered.
@@ -175,15 +198,19 @@ export interface PawLiteral<T extends string | number | boolean>
   extends PawSchema<"literal", T>,
     PawRefinable<PawLiteral<T>>,
     PawMaybeOptional<PawLiteral<T>>,
+    PawMaybeNullable<PawLiteral<T>>,
     PawCheckable<PawLiteral<T>, T>,
-    PawTransformable<T> {}
+    PawTransformable<T>,
+    PawRequireable<PawLiteral<T>> {}
 
 export interface PawUnion<T extends Array<PawSchema<any, any>>>
   extends PawSchema<"union", PawInfer<T[number]>>,
     PawRefinable<PawUnion<T>>,
     PawMaybeOptional<PawUnion<T>>,
+    PawMaybeNullable<PawUnion<T>>,
     PawCheckable<PawUnion<T>, PawInfer<T[number]>>,
-    PawTransformable<PawInfer<T[number]>> {}
+    PawTransformable<PawInfer<T[number]>>,
+    PawRequireable<PawUnion<T>> {}
 
 const TRANSFORM = "transform";
 class PawTransformParser<T, S extends PawSchema<string, any>> implements PawTransform<T> {
@@ -218,9 +245,9 @@ class PawTransformParser<T, S extends PawSchema<string, any>> implements PawTran
   }
 }
 
-const OPTION = "option" as const;
+const OPTIONAL = "optional" as const;
 export class PawOptionalParser<T extends PawSchema<string, any>> implements PawOptional<T> {
-  public readonly kind = OPTION;
+  public readonly kind = OPTIONAL;
   private readonly parser: T;
   private refines: RefineFn[];
 
@@ -234,7 +261,7 @@ export class PawOptionalParser<T extends PawSchema<string, any>> implements PawO
     return this;
   }
 
-  parse(val: unknown): ReturnType<T["parse"]> | null | undefined {
+  parse(val: unknown): ReturnType<T["parse"]> | undefined {
     const result = this.safeParse(val);
     if (!result.ok) {
       throw new PawParseError(result.error);
@@ -242,12 +269,53 @@ export class PawOptionalParser<T extends PawSchema<string, any>> implements PawO
     return result.value;
   }
 
-  safeParse(val: unknown): PawResult<ReturnType<T["parse"]> | null | undefined, PawIssue> {
+  safeParse(val: unknown): PawResult<ReturnType<T["parse"]> | undefined, PawIssue> {
     for (const fn of this.refines) {
       val = fn(val);
     }
 
-    if (val === null || val === undefined) {
+    if (val === undefined) {
+      return new PawOk(val);
+    }
+
+    return this.parser.safeParse(val);
+  }
+}
+
+const NULLABLE = "nullable" as const;
+export class PawNullableParser<T extends PawSchema<string, any>> implements PawNullable<T> {
+  public readonly kind = NULLABLE;
+  private readonly parser: T;
+  private refines: RefineFn[];
+
+  constructor(parser: T) {
+    this.parser = parser;
+    this.refines = [];
+  }
+
+  optional(): PawOptional<PawNullable<T>> {
+    return new PawOptionalParser(this);
+  }
+
+  refine<U>(fn: RefineFn<U>): PawNullable<T> {
+    this.refines.push(fn);
+    return this;
+  }
+
+  parse(val: unknown): ReturnType<T["parse"]> | null {
+    const result = this.safeParse(val);
+    if (!result.ok) {
+      throw new PawParseError(result.error);
+    }
+    return result.value;
+  }
+
+  safeParse(val: unknown): PawResult<ReturnType<T["parse"]> | null, PawIssue> {
+    for (const fn of this.refines) {
+      val = fn(val);
+    }
+
+    if (val === null) {
       return new PawOk(val);
     }
 
@@ -281,6 +349,10 @@ class PawStringParser implements PawString {
 
   optional(): PawOptional<PawString> {
     return new PawOptionalParser(this);
+  }
+
+  nullable(): PawNullable<PawString> {
+    return new PawNullableParser(this);
   }
 
   refine<T>(fn: RefineFn<T>): PawString {
@@ -366,6 +438,10 @@ class PawNumberParser implements PawNumber {
 
   optional(): PawOptional<PawNumber> {
     return new PawOptionalParser(this);
+  }
+
+  nullable(): PawNullable<PawNumber> {
+    return new PawNullableParser(this);
   }
 
   required(message: string): PawNumber {
@@ -455,6 +531,10 @@ class PawBooleanParser implements PawBoolean {
 
   optional(): PawOptional<PawBoolean> {
     return new PawOptionalParser(this);
+  }
+
+  nullable(): PawNullable<PawBoolean> {
+    return new PawNullableParser(this);
   }
 
   required(message: string): PawBoolean {
@@ -632,6 +712,10 @@ class PawArrayParser<T extends PawType> implements PawArray<T> {
     return new PawOptionalParser(this);
   }
 
+  nullable(): PawNullable<PawArray<T>> {
+    return new PawNullableParser(this);
+  }
+
   required(message: string): PawArray<T> {
     this.reqMessage = message;
     return this;
@@ -785,6 +869,10 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
 
   optional(): PawOptional<PawObject<T>> {
     return new PawOptionalParser(this);
+  }
+
+  nullable(): PawNullable<PawObject<T>> {
+    return new PawNullableParser(this);
   }
 
   check(fn: PawCheckFn<PawParsedObject<T>>, message?: string): PawObject<T> {
@@ -974,6 +1062,10 @@ class PawLiteralParser<const T extends string | number | boolean> implements Paw
     return new PawOptionalParser(this);
   }
 
+  nullable(): PawNullable<PawLiteral<T>> {
+    return new PawNullableParser(this);
+  }
+
   check(fn: PawCheckFn<T>, message?: string): PawLiteral<T> {
     this.checks.push(new PawCheck(fn, message));
     return this;
@@ -1048,6 +1140,10 @@ class PawUnionParser<T extends Array<PawSchema<any, any>>> implements PawUnion<T
 
   optional(): PawOptional<PawUnion<T>> {
     return new PawOptionalParser(this);
+  }
+
+  nullable(): PawNullable<PawUnion<T>> {
+    return new PawNullableParser(this);
   }
 
   check(fn: PawCheckFn<PawInfer<T[number]>>, message?: string): PawUnion<T> {
