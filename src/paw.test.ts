@@ -235,7 +235,7 @@ describe("paw", () => {
   });
 
   test("array immediate parser works", () => {
-    const strarr = paw.array(paw.string());
+    const strarr = paw.array(paw.string()).immediate();
 
     expect(strarr.parse(["test"])).toMatchObject(["test"]);
     expect(strarr.parse([])).toMatchObject([]);
