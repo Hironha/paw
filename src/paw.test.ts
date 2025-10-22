@@ -1,6 +1,6 @@
 import { describe, test, expect } from "vitest";
 import * as paw from "./paw";
-import { unwrapOk, unwrapError } from "./result";
+import { PawOk, PawError } from "./result";
 
 describe("paw", () => {
   test("string parser works", () => {
@@ -17,7 +17,7 @@ describe("paw", () => {
     const result = str.safeParse(2);
     expect(!result.ok, "2 is not a string").toBeTruthy();
 
-    const error = unwrapError(result);
+    const error = PawError.unwrap(result);
     expect(error).toMatchObject({
       kind: "string",
       message: "invalid string",
@@ -38,7 +38,7 @@ describe("paw", () => {
     expect(result.ok).toBeTruthy();
 
     result = str.safeParse("test");
-    const error = unwrapError(result);
+    const error = PawError.unwrap(result);
     expect(error).toMatchObject({
       kind: "string",
       message: "invalid pattern",
@@ -49,7 +49,7 @@ describe("paw", () => {
     const str = paw.string().transform((s) => Number(s));
     const result = str.safeParse("2");
     expect(result.ok).toBeTruthy();
-    const value = unwrapOk(result);
+    const value = PawOk.unwrap(result);
     expect(value).toStrictEqual(2);
   });
 
@@ -57,7 +57,7 @@ describe("paw", () => {
     const num = paw.number();
 
     expect(num.parse(2)).toStrictEqual(2);
-    expect(unwrapOk(num.safeParse(2))).toStrictEqual(2);
+    expect(PawOk.unwrap(num.safeParse(2))).toStrictEqual(2);
     expect(!num.safeParse(null).ok, "null is not a number").toBeTruthy();
     expect(!num.safeParse("test").ok, "test it not a number").toBeTruthy();
     expect(!num.safeParse({}).ok, "object is not a number").toBeTruthy();
@@ -68,7 +68,7 @@ describe("paw", () => {
     const result = num.safeParse("test");
     expect(!result.ok, "test is not a number").toBeTruthy();
 
-    const error = unwrapError(result);
+    const error = PawError.unwrap(result);
     expect(error).toMatchObject({
       kind: "number",
       message: "invalid number",
@@ -126,7 +126,7 @@ describe("paw", () => {
 
     result = num.safeParse(22);
     expect(!result.ok).toBeTruthy();
-    const error = unwrapError(result);
+    const error = PawError.unwrap(result);
     expect(error).toMatchObject({
       kind: "number",
       message: "not a minor age",
@@ -137,7 +137,7 @@ describe("paw", () => {
     const num = paw.number().transform((n) => n.toString());
     const result = num.safeParse(2);
     expect(result.ok).toBeTruthy();
-    const value = unwrapOk(result);
+    const value = PawOk.unwrap(result);
     expect(value).toStrictEqual("2");
   });
 
@@ -156,7 +156,7 @@ describe("paw", () => {
     const result = bool.safeParse("test");
     expect(!result.ok, "test is not a boolean").toBeTruthy();
 
-    const error = unwrapError(result);
+    const error = PawError.unwrap(result);
     expect(error).toMatchObject({
       kind: "boolean",
       message: "invalid boolean",
@@ -178,7 +178,7 @@ describe("paw", () => {
 
     result = bool.safeParse(false);
     expect(!result.ok).toBeTruthy();
-    const error = unwrapError(result);
+    const error = PawError.unwrap(result);
     expect(error).toMatchObject({
       kind: "boolean",
       message: "boolean should be true",
@@ -189,7 +189,7 @@ describe("paw", () => {
     const bool = paw.boolean().transform((b) => b.toString());
     const result = bool.safeParse(true);
     expect(result.ok).toBeTruthy();
-    const value = unwrapOk(result);
+    const value = PawOk.unwrap(result);
     expect(value).toStrictEqual("true");
   });
 
@@ -214,7 +214,7 @@ describe("paw", () => {
     const result = optstr.safeParse(2);
     expect(!result.ok, "2 is not an optional string");
 
-    const error = unwrapError(result);
+    const error = PawError.unwrap(result);
     expect(error).toMatchObject({
       kind: "string",
       message: "invalid string",
@@ -265,7 +265,7 @@ describe("paw", () => {
 
     result = arr.safeParse(["test", "nina"]);
     expect(!result.ok).toBeTruthy();
-    const error = unwrapError(result);
+    const error = PawError.unwrap(result);
     expect(error).toMatchObject({
       kind: "array-type",
       message: "first should be nina",
@@ -280,7 +280,7 @@ describe("paw", () => {
 
     result = arr.safeParse(["test", "nina"]);
     expect(!result.ok).toBeTruthy();
-    const error = unwrapError(result);
+    const error = PawError.unwrap(result);
     expect(error).toMatchObject({
       kind: "array-type",
       message: "first should be nina",
@@ -292,7 +292,7 @@ describe("paw", () => {
     const result = strarr.safeParse("test");
     expect(!result.ok, "test is not an array").toBeTruthy();
 
-    const error = unwrapError(result);
+    const error = PawError.unwrap(result);
     expect(error).toMatchObject({
       kind: "array-type",
       message: "expected array",
@@ -304,7 +304,7 @@ describe("paw", () => {
     const result = strarr.safeParse("test");
     expect(!result.ok, "test is not an array").toBeTruthy();
 
-    const error = unwrapError(result);
+    const error = PawError.unwrap(result);
     expect(error).toMatchObject({
       kind: "array-type",
       message: "expected array",
@@ -316,7 +316,7 @@ describe("paw", () => {
     let result = strarr.safeParse(["test", 2]);
     expect(!result.ok, "array includes a non string value");
 
-    let error = unwrapError(result);
+    let error = PawError.unwrap(result);
     expect(error).toMatchObject({
       kind: "array-schema",
       issues: [
@@ -331,7 +331,7 @@ describe("paw", () => {
     });
 
     result = strarr.safeParse([1, 2]);
-    error = unwrapError(result);
+    error = PawError.unwrap(result);
     expect(error).toMatchObject({
       kind: "array-schema",
       issues: [
@@ -394,7 +394,7 @@ describe("paw", () => {
     const arr = paw.array(paw.string()).transform((arr) => arr[0]);
     const result = arr.safeParse(["test"]);
     expect(result.ok).toBeTruthy();
-    const value = unwrapOk(result);
+    const value = PawOk.unwrap(result);
     expect(value).toStrictEqual("test");
   });
 
@@ -411,7 +411,7 @@ describe("paw", () => {
     const result = obj.safeParse("test");
     expect(!result.ok, "test is not an object").toBeTruthy();
 
-    const error = unwrapError(result);
+    const error = PawError.unwrap(result);
     expect(error.kind).toStrictEqual("object-type");
   });
 
@@ -420,7 +420,7 @@ describe("paw", () => {
     const result = obj.safeParse({ name: 2 });
     expect(!result.ok, "name property is not a string").toBeTruthy();
 
-    const error = unwrapError(result);
+    const error = PawError.unwrap(result);
     expect(error.kind).toStrictEqual("object-schema");
     const issues = error.kind === "object-schema" ? error.issues : undefined;
     expect(issues).toMatchObject([
@@ -444,7 +444,7 @@ describe("paw", () => {
 
     result = obj.safeParse({ name: 2 });
     expect(!result.ok).toBeTruthy();
-    expect(unwrapError(result)).toMatchObject({
+    expect(PawError.unwrap(result)).toMatchObject({
       kind: "object-schema",
       message: expect.any(String),
       issues: [
@@ -484,7 +484,7 @@ describe("paw", () => {
 
     const result = obj.safeParse({ name: 2, traits: {} });
     expect(!result.ok).toBeTruthy();
-    expect(unwrapError(result)).toMatchObject({
+    expect(PawError.unwrap(result)).toMatchObject({
       kind: "object-schema",
       message: "invalid object",
       issues: [
@@ -515,7 +515,7 @@ describe("paw", () => {
 
     const result = obj.safeParse({ name: 2, traits: {} });
     expect(!result.ok).toBeTruthy();
-    expect(unwrapError(result)).toMatchObject({
+    expect(PawError.unwrap(result)).toMatchObject({
       kind: "object-schema",
       message: "invalid object",
       issues: [
@@ -557,7 +557,7 @@ describe("paw", () => {
 
     result = obj.safeParse({ name: "nina", lastname: "nina" });
     expect(!result.ok).toBeTruthy();
-    const error = unwrapError(result);
+    const error = PawError.unwrap(result);
     expect(error).toMatchObject({
       kind: "object-type",
       message: "name and lastname should be different",
@@ -574,7 +574,7 @@ describe("paw", () => {
 
     result = obj.safeParse({ name: "nina", lastname: "nina" });
     expect(!result.ok).toBeTruthy();
-    const error = unwrapError(result);
+    const error = PawError.unwrap(result);
     expect(error).toMatchObject({
       kind: "object-type",
       message: "name and lastname should be different",
@@ -585,7 +585,7 @@ describe("paw", () => {
     const obj = paw.object({ name: paw.string() }).transform((obj) => obj.name);
     const result = obj.safeParse({ name: "test" });
     expect(result.ok).toBeTruthy();
-    const value = unwrapOk(result);
+    const value = PawOk.unwrap(result);
     expect(value).toStrictEqual("test");
   });
 
@@ -593,12 +593,12 @@ describe("paw", () => {
     const nonstrict = paw.object({ name: paw.string() });
     const nonstrictResult = nonstrict.safeParse({ name: "string", age: 2 });
     expect(nonstrictResult.ok).toBeTruthy();
-    expect(unwrapOk(nonstrictResult)).toStrictEqual({ name: "string", age: 2 });
+    expect(PawOk.unwrap(nonstrictResult)).toStrictEqual({ name: "string", age: 2 });
 
     const strict = paw.object({ name: paw.string() }).strict();
     const strictResult = strict.safeParse({ name: "string", age: 2 });
     expect(strictResult.ok).toBeTruthy();
-    expect(unwrapOk(strictResult)).toStrictEqual({ name: "string" });
+    expect(PawOk.unwrap(strictResult)).toStrictEqual({ name: "string" });
   });
 
   test("literal parser works", () => {
@@ -619,7 +619,7 @@ describe("paw", () => {
     const result = animals.safeParse("beer");
     expect(!result.ok, "beer is not a valid animal").toBeTruthy();
 
-    const error = unwrapError(result);
+    const error = PawError.unwrap(result);
     expect(error.kind).toStrictEqual("literal");
   });
 
@@ -633,7 +633,7 @@ describe("paw", () => {
 
     result = animals.safeParse("tiger");
     expect(!result.ok).toBeTruthy();
-    const error = unwrapError(result);
+    const error = PawError.unwrap(result);
     expect(error).toMatchObject({
       kind: "literal",
       message: "not a domestic animal",
@@ -651,11 +651,11 @@ describe("paw", () => {
     });
     let result = schema.safeParse("cat");
     expect(result.ok).toBeTruthy();
-    expect(unwrapOk(result)).toStrictEqual(1);
+    expect(PawOk.unwrap(result)).toStrictEqual(1);
 
     result = schema.safeParse("tiger");
     expect(!result.ok).toBeTruthy();
-    expect(unwrapError(result)).toMatchObject({
+    expect(PawError.unwrap(result)).toMatchObject({
       kind: "literal",
       message: "not a domestic animal",
     });
@@ -665,7 +665,7 @@ describe("paw", () => {
     const union = paw.union([paw.string(), paw.number()]);
     const result = union.safeParse("test");
     expect(result.ok).toBeTruthy();
-    expect(unwrapOk(result) === "test").toBeTruthy();
+    expect(PawOk.unwrap(result) === "test").toBeTruthy();
   });
 
   test("union with complex objects works", () => {
@@ -685,7 +685,7 @@ describe("paw", () => {
     });
     expect(result.ok).toBeTruthy();
 
-    const nina = unwrapOk(result);
+    const nina = PawOk.unwrap(result);
     expect(nina.name).toStrictEqual("nina");
     expect(nina.sound).toStrictEqual("meow");
   });
@@ -697,7 +697,7 @@ describe("paw", () => {
 
     const result = schema.safeParse(1);
     expect(result.ok).toBeTruthy();
-    expect(unwrapOk(result)).toStrictEqual(true);
+    expect(PawOk.unwrap(result)).toStrictEqual(true);
   });
 
   test("union check works", () => {
@@ -712,7 +712,7 @@ describe("paw", () => {
 
     result = union.safeParse("test");
     expect(!result.ok).toBeTruthy();
-    const error = unwrapError(result);
+    const error = PawError.unwrap(result);
     expect(error).toMatchObject({
       kind: "union",
       message: "if string then should be nina",
@@ -725,11 +725,11 @@ describe("paw", () => {
       .transform((u) => u.toString());
     let result = schema.safeParse(true);
     expect(result.ok).toBeTruthy();
-    expect(unwrapOk(result)).toStrictEqual("true");
+    expect(PawOk.unwrap(result)).toStrictEqual("true");
 
     result = schema.safeParse({});
     expect(!result.ok).toBeTruthy();
-    expect(unwrapError(result)).toMatchObject({
+    expect(PawError.unwrap(result)).toMatchObject({
       kind: "union",
       message: "invalid value",
     });
@@ -743,11 +743,11 @@ describe("paw", () => {
       .transform(Boolean);
     let result = schema.safeParse(2);
     expect(result.ok).toBeTruthy();
-    expect(unwrapOk(result)).toStrictEqual(true);
+    expect(PawOk.unwrap(result)).toStrictEqual(true);
 
     result = schema.safeParse({});
     expect(!result.ok).toBeTruthy();
-    expect(unwrapError(result)).toMatchObject({
+    expect(PawError.unwrap(result)).toMatchObject({
       kind: "number",
       message: "invalid number",
     });
