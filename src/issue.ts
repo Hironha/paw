@@ -1,3 +1,5 @@
+import type { StandardSchemaV1 } from "./standard-schema";
+
 export type PawIssue =
   | PawRequiredIssue
   | PawStringIssue
@@ -19,57 +21,60 @@ export class PawParseError extends Error {
   }
 }
 
-interface PawIssueBase {
-  readonly message: string;
+export type PawIssuePath = ReadonlyArray<PropertyKey>;
+
+abstract class PawIssueBase implements StandardSchemaV1.Issue {
+  public readonly message: string;
+  public readonly path?: PawIssuePath;
+
+  constructor(message: string, path?: PawIssuePath) {
+    this.message = message;
+    this.path = path;
+  }
 }
 
 const REQUIRED = "required" as const;
-export class PawRequiredIssue implements PawIssueBase {
+export class PawRequiredIssue extends PawIssueBase {
   public readonly kind = REQUIRED;
-  public message: string;
 
-  constructor(message: string) {
-    this.message = message;
+  constructor(message: string, path?: PawIssuePath) {
+    super(message, path);
   }
 }
 
 const STRING = "string" as const;
-export class PawStringIssue implements PawIssueBase {
+export class PawStringIssue extends PawIssueBase {
   public readonly kind = STRING;
-  public message: string;
 
-  constructor(message: string) {
-    this.message = message;
+  constructor(message: string, path?: PawIssuePath) {
+    super(message, path);
   }
 }
 
 const NUMBER = "number" as const;
-export class PawNumberIssue implements PawIssueBase {
+export class PawNumberIssue extends PawIssueBase {
   public readonly kind = NUMBER;
-  public message: string;
 
-  constructor(message: string) {
-    this.message = message;
+  constructor(message: string, path?: PawIssuePath) {
+    super(message, path);
   }
 }
 
 const BOOLEAN = "boolean" as const;
-export class PawBooleanIssue implements PawIssueBase {
+export class PawBooleanIssue extends PawIssueBase {
   public readonly kind = BOOLEAN;
-  public message: string;
 
-  constructor(message: string) {
-    this.message = message;
+  constructor(message: string, path?: PawIssuePath) {
+    super(message, path);
   }
 }
 
 const ARRAY = "array-type" as const;
-export class PawArrayTypeIssue implements PawIssueBase {
+export class PawArrayTypeIssue extends PawIssueBase {
   public readonly kind = ARRAY;
-  public message: string;
 
-  constructor(message: string) {
-    this.message = message;
+  constructor(message: string, path?: PawIssuePath) {
+    super(message, path);
   }
 }
 
@@ -79,60 +84,55 @@ export type PawArrayIndexIssue = {
 };
 
 const ARRAY_SCHEMA = "array-schema";
-export class PawArraySchemaIssue implements PawIssueBase {
+export class PawArraySchemaIssue extends PawIssueBase {
   public readonly kind = ARRAY_SCHEMA;
-  public readonly message: string;
   public readonly issues: PawArrayIndexIssue[];
 
-  constructor(message: string, issues: PawArrayIndexIssue[]) {
-    this.message = message;
+  constructor(message: string, issues: PawArrayIndexIssue[], path?: PawIssuePath) {
+    super(message, path);
     this.issues = issues;
   }
 }
 
 const OBJECT_TYPE = "object-type";
-export class PawObjectTypeIssue implements PawIssueBase {
+export class PawObjectTypeIssue extends PawIssueBase {
   public readonly kind = OBJECT_TYPE;
-  public readonly message: string;
 
-  constructor(message: string) {
-    this.message = message;
+  constructor(message: string, path?: PawIssuePath) {
+    super(message, path);
   }
 }
 
 export type PawObjectFieldIssue = {
-  field: string;
-  issue: PawIssue;
+  readonly field: string;
+  readonly issue: PawIssue;
 };
 
 const OBJECT_SCHEMA = "object-schema" as const;
-export class PawObjectSchemaIssue implements PawIssueBase {
+export class PawObjectSchemaIssue extends PawIssueBase {
   public readonly kind = OBJECT_SCHEMA;
-  public readonly message: string;
   public readonly issues: PawObjectFieldIssue[];
 
-  constructor(message: string, issues: PawObjectFieldIssue[]) {
-    this.message = message;
+  constructor(message: string, issues: PawObjectFieldIssue[], path?: PawIssuePath) {
+    super(message, path);
     this.issues = issues;
   }
 }
 
 const LITERAL = "literal" as const;
-export class PawLiteralIssue implements PawIssueBase {
+export class PawLiteralIssue extends PawIssueBase {
   public readonly kind = LITERAL;
-  public message: string;
 
-  constructor(message: string) {
-    this.message = message;
+  constructor(message: string, path?: PawIssuePath) {
+    super(message, path);
   }
 }
 
 const UNION = "union" as const;
-export class PawUnionIssue implements PawIssueBase {
+export class PawUnionIssue extends PawIssueBase {
   public readonly kind = UNION;
-  public message: string;
 
-  constructor(message: string) {
-    this.message = message;
+  constructor(message: string, path?: PawIssuePath) {
+    super(message, path);
   }
 }

@@ -8,3 +8,7 @@ Paw supports many utility methods to help parsing the values, such as `refine`, 
 - `parsing` is done either through `parse` or `safeParse` and validates the value based on the schema.
 - `check` is just a simple validation meant to be used when validating the schema is not enough. Supports returning issues with custom messages.
 - `transform` transform the value after validating the schema and all `check`s. Primarily used for type driven design.
+
+### Standard Schema
+
+Paw is also [standard schema](https://github.com/standard-schema/standard-schema) compatible. This is useful to integrate with the Typescript ecosystem, such as the [Elysia](https://elysiajs.com/) backend framework.

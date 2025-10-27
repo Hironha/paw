@@ -14,7 +14,9 @@ import {
   PawStringIssue,
   PawUnionIssue,
   PawParseError,
+  type PawIssuePath,
 } from "./issue";
+import type { StandardSchemaV1 } from "./standard-schema";
 
 export type PawType =
   | PawString
@@ -50,7 +52,7 @@ export interface PawParser<T> {
   safeParse(val: unknown): PawResult<T, PawIssue>;
 }
 
-export interface PawSchema<N extends string, T> extends PawParser<T> {
+export interface PawSchema<N extends string, T> extends PawParser<T>, StandardSchemaV1<unknown, T> {
   readonly kind: N;
 }
 
@@ -60,6 +62,28 @@ export interface PawRefinable<S extends PawParser<any>> {
 }
 
 export type PawCheckFn<T> = (val: T) => boolean;
+
+const PAW_VENDOR = "paw" as const;
+
+class PawStandardSchemaProps<S extends PawSchema<any, any>>
+  implements StandardSchemaV1.Props<unknown, PawInfer<S>>
+{
+  public readonly version: 1;
+  public readonly vendor: string;
+  public readonly validate: (value: unknown) => StandardSchemaV1.Result<PawInfer<S>>;
+
+  constructor(schema: S) {
+    this.version = 1;
+    this.vendor = PAW_VENDOR;
+    this.validate = (value) => {
+      const result = schema.safeParse(value);
+      if (result.ok) {
+        return { value: result.value };
+      }
+      return { issues: [result.error] };
+    };
+  }
+}
 
 class PawCheck<T> {
   public readonly fn: PawCheckFn<T>;
@@ -192,6 +216,10 @@ export interface PawObject<T extends Record<string, PawType>>
    * Set parser to include only defined properties in parsed object.
    */
   strict(): PawObject<T>;
+  /**
+   * Set the parser to include the `path` in issues.
+   */
+  pathed(): PawObject<T>;
 }
 
 export interface PawLiteral<T extends string | number | boolean>
@@ -215,12 +243,15 @@ export interface PawUnion<T extends Array<PawSchema<any, any>>>
 const TRANSFORM = "transform";
 class PawTransformParser<T, S extends PawSchema<string, any>> implements PawTransform<T> {
   public readonly kind = TRANSFORM;
+  public readonly "~standard": StandardSchemaV1.Props<unknown, T>;
+
   private readonly fn: PawTransformFn<ReturnType<S["parse"]>, T>;
   private readonly schema: S;
 
   constructor(fn: PawTransformFn<ReturnType<S["parse"]>, T>, schema: S) {
     this.fn = fn;
     this.schema = schema;
+    this["~standard"] = new PawStandardSchemaProps(this);
   }
 
   transform<U>(fn: PawTransformFn<T, U>): PawTransform<U> {
@@ -248,12 +279,15 @@ class PawTransformParser<T, S extends PawSchema<string, any>> implements PawTran
 const OPTIONAL = "optional" as const;
 export class PawOptionalParser<T extends PawSchema<string, any>> implements PawOptional<T> {
   public readonly kind = OPTIONAL;
+  public readonly "~standard": StandardSchemaV1.Props<unknown, ReturnType<T["parse"]> | undefined>;
+
   private readonly parser: T;
   private refines: RefineFn[];
 
   constructor(parser: T) {
     this.parser = parser;
     this.refines = [];
+    this["~standard"] = new PawStandardSchemaProps(this);
   }
 
   refine<U>(fn: RefineFn<U>): PawOptional<T> {
@@ -285,12 +319,15 @@ export class PawOptionalParser<T extends PawSchema<string, any>> implements PawO
 const NULLABLE = "nullable" as const;
 export class PawNullableParser<T extends PawSchema<string, any>> implements PawNullable<T> {
   public readonly kind = NULLABLE;
+  public readonly "~standard": StandardSchemaV1.Props<unknown, ReturnType<T["parse"]> | null>;
+
   private readonly parser: T;
   private refines: RefineFn[];
 
   constructor(parser: T) {
     this.parser = parser;
     this.refines = [];
+    this["~standard"] = new PawStandardSchemaProps(this);
   }
 
   optional(): PawOptional<PawNullable<T>> {
@@ -326,8 +363,10 @@ export class PawNullableParser<T extends PawSchema<string, any>> implements PawN
 const STRING = "string" as const;
 class PawStringParser implements PawString {
   public readonly kind = STRING;
+  public readonly "~standard": StandardSchemaV1.Props<unknown, string>;
+
   private readonly message: string | undefined;
-  private reqMessage: string | undefined;
+  private reqmessage: string | undefined;
   private refines: RefineFn[];
   private checks: PawCheck<string>[];
 
@@ -335,6 +374,7 @@ class PawStringParser implements PawString {
     this.message = message;
     this.checks = [];
     this.refines = [];
+    this["~standard"] = new PawStandardSchemaProps(this);
   }
 
   check(fn: PawCheckFn<string>, message?: string): PawString {
@@ -343,7 +383,7 @@ class PawStringParser implements PawString {
   }
 
   required(message: string): PawString {
-    this.reqMessage = message;
+    this.reqmessage = message;
     return this;
   }
 
@@ -378,7 +418,7 @@ class PawStringParser implements PawString {
     }
 
     if (val === null || val === undefined) {
-      const message = this.reqMessage ?? this.message ?? `Expected string but received ${val}`;
+      const message = this.reqmessage ?? this.message ?? `Expected string but received ${val}`;
       return new PawError(new PawRequiredIssue(message));
     }
 
@@ -402,8 +442,10 @@ class PawStringParser implements PawString {
 const NUMBER = "number" as const;
 class PawNumberParser implements PawNumber {
   public readonly kind = NUMBER;
+  public readonly "~standard": StandardSchemaV1.Props<unknown, number>;
+
   private readonly message: string | undefined;
-  private reqMessage: string | undefined;
+  private reqmessage: string | undefined;
   private intcfg: { value: boolean; message?: string } = { value: false };
   private mincfg: { value: number; message?: string } | undefined;
   private maxcfg: { value: number; message?: string } | undefined;
@@ -414,6 +456,7 @@ class PawNumberParser implements PawNumber {
     this.message = message;
     this.checks = [];
     this.refines = [];
+    this["~standard"] = new PawStandardSchemaProps(this);
   }
 
   check(fn: PawCheckFn<number>, message?: string): PawNumber {
@@ -445,7 +488,7 @@ class PawNumberParser implements PawNumber {
   }
 
   required(message: string): PawNumber {
-    this.reqMessage = message;
+    this.reqmessage = message;
     return this;
   }
 
@@ -472,7 +515,7 @@ class PawNumberParser implements PawNumber {
     }
 
     if (val === null || val === undefined) {
-      const message = this.reqMessage ?? this.message ?? `Expected a number but received ${val}`;
+      const message = this.reqmessage ?? this.message ?? `Expected a number but received ${val}`;
       return new PawError(new PawRequiredIssue(message));
     }
 
@@ -513,8 +556,10 @@ class PawNumberParser implements PawNumber {
 const BOOLEAN = "boolean" as const;
 class PawBooleanParser implements PawBoolean {
   public readonly kind = BOOLEAN;
+  public readonly "~standard": StandardSchemaV1.Props<unknown, boolean>;
+
   private readonly message: string | undefined;
-  private reqMessage: string | undefined;
+  private reqmessage: string | undefined;
   private refines: RefineFn[];
   private checks: PawCheck<boolean>[];
 
@@ -522,6 +567,7 @@ class PawBooleanParser implements PawBoolean {
     this.message = message;
     this.checks = [];
     this.refines = [];
+    this["~standard"] = new PawStandardSchemaProps(this);
   }
 
   check(fn: PawCheckFn<boolean>, message?: string): PawBoolean {
@@ -538,7 +584,7 @@ class PawBooleanParser implements PawBoolean {
   }
 
   required(message: string): PawBoolean {
-    this.reqMessage = message;
+    this.reqmessage = message;
     return this;
   }
 
@@ -565,7 +611,7 @@ class PawBooleanParser implements PawBoolean {
     }
 
     if (val === null || val === undefined) {
-      const message = this.reqMessage ?? this.message ?? `Expected boolean but received ${val}`;
+      const message = this.reqmessage ?? this.message ?? `Expected boolean but received ${val}`;
       return new PawError(new PawRequiredIssue(message));
     }
 
@@ -589,12 +635,15 @@ class PawBooleanParser implements PawBoolean {
 const UNKNOWN = "unknown" as const;
 class PawUnknownParser implements PawUnknown {
   public readonly kind = UNKNOWN;
+  public readonly "~standard": StandardSchemaV1.Props<unknown, unknown>;
+
   private refines: RefineFn[];
   private checks: PawCheck<unknown>[];
 
   constructor() {
     this.refines = [];
     this.checks = [];
+    this["~standard"] = new PawStandardSchemaProps(this);
   }
 
   check(fn: PawCheckFn<any>, message?: string): PawUnknown {
@@ -630,12 +679,15 @@ class PawUnknownParser implements PawUnknown {
 const ANY = "any" as const;
 export class PawAnyParser implements PawAny {
   public readonly kind = ANY;
+  public readonly "~standard": StandardSchemaV1.Props<unknown, any>;
+
   private refines: RefineFn[];
   private checks: PawCheck<any>[];
 
   constructor() {
     this.refines = [];
     this.checks = [];
+    this["~standard"] = new PawStandardSchemaProps(this);
   }
 
   check(fn: PawCheckFn<any>, message?: string): PawAny {
@@ -671,10 +723,12 @@ export class PawAnyParser implements PawAny {
 const ARRAY = "array" as const;
 class PawArrayParser<T extends PawType> implements PawArray<T> {
   public readonly kind = ARRAY;
+  public readonly "~standard": StandardSchemaV1.Props<unknown, PawInfer<T>[]>;
+
   private readonly unit: T;
   private readonly message: string | undefined;
   private isImmediate: boolean;
-  private reqMessage: string | undefined;
+  private reqmessage: string | undefined;
   private maxcfg: { value: number; message?: string } | undefined;
   private mincfg: { value: number; message?: string } | undefined;
   private refines: RefineFn[];
@@ -686,6 +740,7 @@ class PawArrayParser<T extends PawType> implements PawArray<T> {
     this.isImmediate = false;
     this.checks = [];
     this.refines = [];
+    this["~standard"] = new PawStandardSchemaProps(this);
   }
 
   immediate(): PawArray<T> {
@@ -717,7 +772,7 @@ class PawArrayParser<T extends PawType> implements PawArray<T> {
   }
 
   required(message: string): PawArray<T> {
-    this.reqMessage = message;
+    this.reqmessage = message;
     return this;
   }
 
@@ -811,7 +866,7 @@ class PawArrayParser<T extends PawType> implements PawArray<T> {
 
   private parseArray(val: unknown): PawResult<any[], PawIssue> {
     if (val === null || val === undefined) {
-      const message = this.reqMessage ?? this.message ?? `Expected array but received ${val}`;
+      const message = this.reqmessage ?? this.message ?? `Expected array but received ${val}`;
       return new PawError(new PawRequiredIssue(message));
     }
 
@@ -847,16 +902,46 @@ class PawArrayParser<T extends PawType> implements PawArray<T> {
   }
 }
 
+// this idea does not work because I can't get the path correctly when
+// having a nested path with a depth bigger than 2
+class PawTrackedParser<S extends PawSchema<string, any>> {
+  public readonly path: PawIssuePath;
+  private readonly schema: S;
+
+  constructor(schema: S, path: PawIssuePath) {
+    this.schema = schema;
+    this.path = path;
+  }
+
+  safeParse(val: unknown): PawResult<ReturnType<S["parse"]>, PawIssue> {
+    const result = this.schema.safeParse(val);
+    if (result.ok) {
+      return result;
+    }
+
+    const path = this.path.concat(result.error.path ?? []);
+    // HACK: set new `path` while keeping it readonly in `PawIssue`. Maybe
+    // another approach would be to just clone the `PawIssue` to set the `path`
+    // correctly
+    Object.assign(result.error, { path });
+    return result;
+  }
+}
+
 const OBJECT = "object" as const;
+// TODO: maybe allow the user to configure if he wants the `path` in all issues
 class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T> {
   public readonly kind = OBJECT;
+  public readonly "~standard": StandardSchemaV1.Props<unknown, PawParsedObject<T>>;
+
   private readonly fields: T;
   private readonly message: string | undefined;
   private isImmediate: boolean;
-  private reqMessage: string | undefined;
+  private reqmessage: string | undefined;
   private refines: RefineFn[];
   private checks: PawCheck<PawParsedObject<T>>[];
   private isStrict: boolean;
+  private isPathed: boolean;
 
   constructor(fields: T, message?: string) {
     this.fields = fields;
@@ -865,6 +950,8 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
     this.refines = [];
     this.checks = [];
     this.isStrict = false;
+    this.isPathed = false;
+    this["~standard"] = new PawStandardSchemaProps(this);
   }
 
   optional(): PawOptional<PawObject<T>> {
@@ -881,7 +968,7 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
   }
 
   required(message: string): PawObject<T> {
-    this.reqMessage = message;
+    this.reqmessage = message;
     return this;
   }
 
@@ -899,6 +986,11 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
     return new PawTransformParser(fn, this);
   }
 
+  pathed(): PawObject<T> {
+    this.isPathed = true;
+    return this;
+  }
+
   strict(): PawObject<T> {
     this.isStrict = true;
     return this;
@@ -914,11 +1006,12 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
 
   // TODO: refactor how strict parsing in handled to remove code duplication
   safeParse(val: unknown): PawResult<PawParsedObject<T>, PawIssue> {
-    if (this.isImmediate) {
-      return this.safeParseImmediate(val);
-    } else {
-      return this.safeParseRetained(val);
+    const result = this.isImmediate ? this.safeParseImmediate(val) : this.safeParseRetained(val);
+    if (!result.ok && this.isPathed) {
+      const pathedIssues = this.makeIssueWithPath(result.error);
+      return new PawError(pathedIssues);
     }
+    return result;
   }
 
   private safeParseImmediate(val: unknown): PawResult<PawParsedObject<T>, PawIssue> {
@@ -937,7 +1030,7 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
         if (!result.ok) {
           const message = this.message ?? `Field '${k}' failed object schema validation`;
           const issue: PawObjectFieldIssue = { field: k, issue: result.error };
-          return new PawError(new PawObjectSchemaIssue(message, [issue]));
+          return new PawError(new PawObjectSchemaIssue(message, [issue], [k]));
         }
         strict[k] = result.value;
       }
@@ -952,7 +1045,6 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
           return new PawError(new PawObjectSchemaIssue(message, [issue]));
         }
       }
-
       parsed = obj.value as PawParsedObject<T>;
     }
 
@@ -1018,7 +1110,7 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
 
   private parseObject(val: unknown): PawResult<Record<string, unknown>, PawIssue> {
     if (val === null || val === undefined) {
-      const message = this.reqMessage ?? this.message ?? `Expected object but received ${val}`;
+      const message = this.reqmessage ?? this.message ?? `Expected object but received ${val}`;
       return new PawError(new PawRequiredIssue(message));
     }
 
@@ -1040,11 +1132,32 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
     }
     return new PawOk(undefined);
   }
+
+  private makeIssueWithPath(issue: PawIssue, path: PawIssuePath = []): PawIssue {
+    if (issue.kind === "object-schema") {
+      for (let j = 0; j < issue.issues.length; j += 1) {
+        const objIssue = issue.issues[j];
+        const pathedIssue = this.makeIssueWithPath(objIssue.issue, path.concat(objIssue.field));
+        Object.assign(objIssue, { issue: pathedIssue });
+      }
+    } else if (issue.kind === "array-schema") {
+      for (let j = 0; j < issue.issues.length; j += 1) {
+        const arrIssue = issue.issues[j];
+        const pathedIssue = this.makeIssueWithPath(arrIssue.issue, path.concat(arrIssue.idx));
+        Object.assign(arrIssue, { issue: pathedIssue });
+      }
+    }
+
+    Object.assign(issue, { path });
+    return issue;
+  }
 }
 
 const LITERAL = "literal" as const;
 class PawLiteralParser<const T extends string | number | boolean> implements PawLiteral<T> {
   public readonly kind = LITERAL;
+  public readonly "~standard": StandardSchemaV1.Props<unknown, T>;
+
   private readonly values: T[];
   private readonly message: string | undefined;
   private reqMessage: string | undefined;
@@ -1056,6 +1169,7 @@ class PawLiteralParser<const T extends string | number | boolean> implements Paw
     this.message = message;
     this.refines = [];
     this.checks = [];
+    this["~standard"] = new PawStandardSchemaProps(this);
   }
 
   optional(): PawOptional<PawLiteral<T>> {
@@ -1125,6 +1239,8 @@ class PawLiteralParser<const T extends string | number | boolean> implements Paw
 const UNION = "union" as const;
 class PawUnionParser<T extends Array<PawSchema<any, any>>> implements PawUnion<T> {
   public readonly kind = UNION;
+  public readonly "~standard": StandardSchemaV1.Props<unknown, PawInfer<T[number]>>;
+
   private readonly schemas: T;
   private readonly message: string | undefined;
   private reqMessage: string | undefined;
@@ -1136,6 +1252,7 @@ class PawUnionParser<T extends Array<PawSchema<any, any>>> implements PawUnion<T
     this.message = message;
     this.refines = [];
     this.checks = [];
+    this["~standard"] = new PawStandardSchemaProps(this);
   }
 
   optional(): PawOptional<PawUnion<T>> {

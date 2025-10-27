@@ -546,6 +546,58 @@ describe("paw", () => {
     });
   });
 
+  test("retained object parse with nested object and pathed works", () => {
+    const obj = paw
+      .object(
+        {
+          name: paw.string("name error"),
+          traits: paw.object(
+            {
+              height: paw.number("height error").required("height required"),
+            },
+            "invalid traits",
+          ),
+        },
+        "invalid object",
+      )
+      .pathed();
+
+    const result = obj.safeParse({ name: 2, traits: {} });
+    expect(!result.ok).toBeTruthy();
+    expect(PawError.unwrap(result)).toMatchObject({
+      kind: "object-schema",
+      message: "invalid object",
+      issues: [
+        {
+          field: "name",
+          issue: {
+            kind: "string",
+            message: "name error",
+            path: ["name"],
+          },
+        },
+        {
+          field: "traits",
+          issue: {
+            kind: "object-schema",
+            message: "invalid traits",
+            path: ["traits"],
+            issues: [
+              {
+                field: "height",
+                issue: {
+                  kind: "required",
+                  message: "height required",
+                  path: ["traits", "height"],
+                },
+              },
+            ],
+          },
+        },
+      ],
+    });
+  });
+
   test("immediate object parse check works", () => {
     const obj = paw
       .object({ name: paw.string(), lastname: paw.string() })
