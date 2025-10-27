@@ -3,54 +3,80 @@ import * as paw from "./paw";
 import { PawOk, PawError } from "./result";
 
 describe("paw", () => {
-  test("string parser works", () => {
-    const str = paw.string();
+  describe("string", () => {
+    test("string parser works", () => {
+      const str = paw.string();
 
-    expect(str.parse("test")).toStrictEqual("test");
-    expect(!str.safeParse(null).ok, "null is not a string").toBeTruthy();
-    expect(!str.safeParse(2).ok, "2 is not a string").toBeTruthy();
-    expect(!str.safeParse({}).ok, "object is not a string").toBeTruthy();
-  });
-
-  test("string parse error returns correct string error", () => {
-    const str = paw.string("invalid string");
-    const result = str.safeParse(2);
-    expect(!result.ok, "2 is not a string").toBeTruthy();
-
-    const error = PawError.unwrap(result);
-    expect(error).toMatchObject({
-      kind: "string",
-      message: "invalid string",
+      expect(str.parse("test")).toStrictEqual("test");
+      expect(!str.safeParse(null).ok, "null is not a string").toBeTruthy();
+      expect(!str.safeParse(2).ok, "2 is not a string").toBeTruthy();
+      expect(!str.safeParse({}).ok, "object is not a string").toBeTruthy();
     });
-  });
 
-  test("string refine works", () => {
-    const str = paw.string().refine((val) => (typeof val === "number" ? val.toString() : val));
+    test("string parse error returns correct string error", () => {
+      const str = paw.string("invalid string");
+      const result = str.safeParse(2);
+      expect(!result.ok, "2 is not a string").toBeTruthy();
 
-    expect(str.parse("test")).toStrictEqual("test");
-    expect(str.parse(2), "refined to string").toStrictEqual("2");
-    expect(!str.safeParse(true).ok, "true is not a string").toBeTruthy();
-  });
-
-  test("string check works", () => {
-    const str = paw.string().check((v) => v.includes("/"), "invalid pattern");
-    let result = str.safeParse("me/nina");
-    expect(result.ok).toBeTruthy();
-
-    result = str.safeParse("test");
-    const error = PawError.unwrap(result);
-    expect(error).toMatchObject({
-      kind: "string",
-      message: "invalid pattern",
+      const error = PawError.unwrap(result);
+      expect(error).toMatchObject({
+        kind: "string",
+        message: "invalid string",
+      });
     });
-  });
 
-  test("string transform works", () => {
-    const str = paw.string().transform((s) => Number(s));
-    const result = str.safeParse("2");
-    expect(result.ok).toBeTruthy();
-    const value = PawOk.unwrap(result);
-    expect(value).toStrictEqual(2);
+    test("string refine works", () => {
+      const str = paw.string().refine((val) => (typeof val === "number" ? val.toString() : val));
+
+      expect(str.parse("test")).toStrictEqual("test");
+      expect(str.parse(2), "refined to string").toStrictEqual("2");
+      expect(!str.safeParse(true).ok, "true is not a string").toBeTruthy();
+    });
+
+    test("string check works", () => {
+      const str = paw.string().check((v) => v.includes("/"), "invalid pattern");
+      let result = str.safeParse("me/nina");
+      expect(result.ok).toBeTruthy();
+
+      result = str.safeParse("test");
+      const error = PawError.unwrap(result);
+      expect(error).toMatchObject({
+        kind: "string",
+        message: "invalid pattern",
+      });
+    });
+
+    test("string transform works", () => {
+      const str = paw.string().transform((s) => Number(s));
+      const result = str.safeParse("2");
+      expect(result.ok).toBeTruthy();
+      const value = PawOk.unwrap(result);
+      expect(value).toStrictEqual(2);
+    });
+
+    test("string min works", () => {
+      const msg = "cannot have less than 3 characters";
+      const str = paw.string().min(3, msg);
+      const result = str.safeParse("12");
+
+      expect(result.ok).toBeFalsy();
+      expect(PawError.unwrap(result)).toMatchObject({
+        kind: "string",
+        message: msg,
+      });
+    });
+
+    test("string max works", () => {
+      const msg = "cannot have more than 3 characters";
+      const str = paw.string().max(3, msg);
+      const result = str.safeParse("1234");
+
+      expect(result.ok).toBeFalsy();
+      expect(PawError.unwrap(result)).toMatchObject({
+        kind: "string",
+        message: msg,
+      });
+    });
   });
 
   test("number parser works", () => {

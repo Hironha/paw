@@ -146,7 +146,12 @@ export interface PawString
     PawMaybeNullable<PawString>,
     PawCheckable<PawString, string>,
     PawTransformable<string>,
-    PawRequireable<PawString> {}
+    PawRequireable<PawString> {
+  /** Set minimum (inclusive) acceptable length for the string.  */
+  min(length: number, message?: string): PawString;
+  /** Set maximum (inclusive) acceptable length for the string */
+  max(length: number, message?: string): PawString;
+}
 
 export interface PawNumber
   extends PawSchema<"number", number>,
@@ -369,12 +374,24 @@ class PawStringParser implements PawString {
   private reqmessage: string | undefined;
   private refines: RefineFn[];
   private checks: PawCheck<string>[];
+  private mincfg?: { length: number; message?: string };
+  private maxcfg?: { length: number; message?: string };
 
   constructor(message?: string) {
     this.message = message;
     this.checks = [];
     this.refines = [];
     this["~standard"] = new PawStandardSchemaProps(this);
+  }
+
+  min(length: number, message?: string): PawString {
+    this.mincfg = { length, message };
+    return this;
+  }
+
+  max(length: number, message?: string): PawString {
+    this.maxcfg = { length, message };
+    return this;
   }
 
   check(fn: PawCheckFn<string>, message?: string): PawString {
@@ -424,6 +441,18 @@ class PawStringParser implements PawString {
 
     if (typeof val !== "string") {
       const message = this.message ?? `Expected string but received ${typeof val}`;
+      return new PawError(new PawStringIssue(message));
+    }
+
+    if (this.mincfg && val.length < this.mincfg.length) {
+      const minlength = this.mincfg.length;
+      const message = this.mincfg.message ?? `String length cannot be less than ${minlength}`;
+      return new PawError(new PawStringIssue(message));
+    }
+
+    if (this.maxcfg && val.length > this.maxcfg.length) {
+      const maxlength = this.maxcfg.length;
+      const message = this.maxcfg.message ?? `String length cannot be more than ${maxlength}`;
       return new PawError(new PawStringIssue(message));
     }
 
