@@ -929,7 +929,6 @@ class PawTrackedParser<S extends PawSchema<string, any>> {
 }
 
 const OBJECT = "object" as const;
-// TODO: maybe allow the user to configure if he wants the `path` in all issues
 class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T> {
   public readonly kind = OBJECT;
   public readonly "~standard": StandardSchemaV1.Props<unknown, PawParsedObject<T>>;
@@ -1004,7 +1003,7 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
     return result.value;
   }
 
-  // TODO: refactor how strict parsing in handled to remove code duplication
+  // TODO: refactor how strict parsing is handled to remove code duplication
   safeParse(val: unknown): PawResult<PawParsedObject<T>, PawIssue> {
     const result = this.isImmediate ? this.safeParseImmediate(val) : this.safeParseRetained(val);
     if (!result.ok && this.isPathed) {
@@ -1314,7 +1313,7 @@ class PawUnionParser<T extends Array<PawSchema<any, any>>> implements PawUnion<T
       return new PawError(new PawRequiredIssue(message));
     }
 
-    // [TODO] improve error message
+    // TODO: improve error message
     const message = this.message ?? "Value does not match any of the union variants";
     return new PawError(new PawUnionIssue(message));
   }
