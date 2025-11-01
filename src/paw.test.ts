@@ -460,6 +460,16 @@ describe("paw", () => {
     });
   });
 
+  test("object extend allow overwriting field schema", () => {
+    const Schema = paw.object({ age: paw.string() });
+    const ExtendedSchema = Schema.extend({ age: paw.number() });
+    const value = { age: 18 };
+    const result = ExtendedSchema.safeParse(value);
+
+    expect(result.ok, "value should be valid extended schema").toBeTruthy();
+    expect(PawOk.unwrap(result)).toStrictEqual(value);
+  });
+
   test("immediate object parse error returns object type error", () => {
     const obj = paw.object({ name: paw.string() }).immediate();
     const result = obj.safeParse("test");

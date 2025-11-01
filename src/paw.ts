@@ -17,6 +17,7 @@ import {
   type PawIssuePath,
 } from "./issue";
 import type { StandardSchemaV1 } from "./standard-schema";
+import type { MergeRecord, Pretty } from "./types";
 
 export type PawType =
   | PawString
@@ -229,7 +230,10 @@ export interface PawObject<T extends Record<string, PawType>>
    * Creates a new object schema extending from current defined schema. The new schema inherits
    * all configurations, such as `immediate` and `strict`.
    */
-  extend<U extends Record<string, PawType>>(fields: U, message?: string): PawObject<T & U>;
+  extend<U extends Record<string, PawType>>(
+    fields: U,
+    message?: string,
+  ): PawObject<Pretty<MergeRecord<T, U>>>;
 }
 
 export interface PawLiteral<T extends string | number | boolean>
@@ -987,9 +991,11 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
     this["~standard"] = new PawStandardSchemaProps(this);
   }
 
-  // TODO: maybe allow overwriting properties from the original schema
-  extend<U extends Record<string, PawType>>(fields: U, message?: string): PawObject<T & U> {
-    const mergedFields: T & U = { ...fields, ...this.fields };
+  extend<U extends Record<string, PawType>>(
+    fields: U,
+    message?: string,
+  ): PawObject<Pretty<MergeRecord<T, U>>> {
+    const mergedFields: T & U = { ...this.fields, ...fields };
     const clone = new PawObjectParser(mergedFields, message);
     clone.isImmediate = this.isImmediate;
     clone.reqmessage = this.reqmessage;
