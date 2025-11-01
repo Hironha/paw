@@ -1,6 +1,7 @@
 import { describe, test, expect } from "vitest";
 import * as paw from "./paw";
 import { PawOk, PawError } from "./result";
+import { PawObjectSchemaIssue, PawRequiredIssue, PawStringIssue } from "./issue";
 
 describe("paw", () => {
   describe("string", () => {
@@ -424,12 +425,39 @@ describe("paw", () => {
     expect(value).toStrictEqual("test");
   });
 
-  test("retained object parser works", () => {
+  test("retained object parse works", () => {
     const obj = paw.object({ name: paw.string() });
 
     expect(obj.parse({ name: "test" })).toMatchObject({ name: "test" });
     expect(!obj.safeParse("test").ok, "value is not a valid object").toBeTruthy();
     expect(!obj.safeParse(null).ok, "null is not a valid object").toBeTruthy();
+  });
+
+  test("extended object parse works", () => {
+    const message = "invalid extended schema object";
+    const Schema = paw.object({ name: paw.string() });
+    const ExtendedSchema = Schema.extend(
+      { lastname: paw.string().required("missing lastname") },
+      message,
+    );
+
+    let result = ExtendedSchema.safeParse({ name: "test" });
+    expect(result.ok, "value should not match extended schema").toBeFalsy();
+    expect(PawError.unwrap(result)).toMatchObject(
+      new PawObjectSchemaIssue(message, [
+        {
+          field: "lastname",
+          issue: new PawRequiredIssue("missing lastname"),
+        },
+      ]),
+    );
+
+    result = ExtendedSchema.safeParse({ name: "firstname", lastname: "lastname" });
+    expect(result.ok, "value should match extended schema").toBeTruthy();
+    expect(PawOk.unwrap(result)).toStrictEqual({
+      name: "firstname",
+      lastname: "lastname",
+    });
   });
 
   test("immediate object parse error returns object type error", () => {
