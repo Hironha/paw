@@ -225,6 +225,11 @@ export interface PawObject<T extends Record<string, PawType>>
    * Set the parser to include the `path` in issues.
    */
   pathed(): PawObject<T>;
+  /**
+   * Creates a new object schema extending from current defined schema. The new schema inherits
+   * all configurations, such as `immediate` and `strict`.
+   */
+  extend<U extends Record<string, PawType>>(fields: U, message?: string): PawObject<T & U>;
 }
 
 export interface PawLiteral<T extends string | number | boolean>
@@ -980,6 +985,19 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
     this.isStrict = false;
     this.isPathed = false;
     this["~standard"] = new PawStandardSchemaProps(this);
+  }
+
+  // TODO: maybe allow overwriting properties from the original schema
+  extend<U extends Record<string, PawType>>(fields: U, message?: string): PawObject<T & U> {
+    const mergedFields: T & U = { ...fields, ...this.fields };
+    const clone = new PawObjectParser(mergedFields, message);
+    clone.isImmediate = this.isImmediate;
+    clone.reqmessage = this.reqmessage;
+    clone.isStrict = this.isStrict;
+    clone.isPathed = this.isPathed;
+    this.refines.forEach((fn) => clone.refine(fn));
+    this.checks.forEach((ck) => clone.check(ck.fn, ck.message));
+    return clone;
   }
 
   optional(): PawOptional<PawObject<T>> {
