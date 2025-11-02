@@ -15,6 +15,7 @@ import {
   PawUnionIssue,
   PawParseError,
   type PawIssuePath,
+  PawCheckIssue,
 } from "./issue";
 import type { StandardSchemaV1 } from "./standard-schema";
 import type { MergeRecord, Pretty } from "./types";
@@ -62,7 +63,28 @@ export interface PawRefinable<S extends PawParser<any>> {
   refine<T>(fn: RefineFn<T>): S;
 }
 
-export type PawCheckFn<T> = (val: T) => boolean;
+export class PawCheckContext<T> {
+  public readonly input: unknown;
+  public readonly output: T;
+  public readonly src: PawType["kind"];
+
+  constructor(input: unknown, output: T, src: PawType["kind"]) {
+    this.input = input;
+    this.output = output;
+    this.src = src;
+  }
+
+  ok(): PawOk<void> {
+    return PawOk.empty();
+  }
+
+  error(message: string, path?: PawIssuePath): PawError<PawCheckIssue> {
+    const issue = new PawCheckIssue(message, this.src, path);
+    return new PawError(issue);
+  }
+}
+
+export type PawCheckFn<T> = (ctx: PawCheckContext<T>) => PawResult<void, PawIssue>;
 
 const PAW_VENDOR = "paw" as const;
 
@@ -86,16 +108,6 @@ class PawStandardSchemaProps<S extends PawSchema<any, any>>
   }
 }
 
-class PawCheck<T> {
-  public readonly fn: PawCheckFn<T>;
-  public readonly message?: string;
-
-  constructor(fn: PawCheckFn<T>, message?: string) {
-    this.fn = fn;
-    this.message = message;
-  }
-}
-
 // TODO: maybe should allow configuring checks to run in immediate mode or retained mode
 // also, maybe `check` should have it's own issue type
 export interface PawCheckable<S, T> {
@@ -103,7 +115,7 @@ export interface PawCheckable<S, T> {
    * Add a custom check constraint. Checks runs after the parsing and are usually meant to validate
    * rules that the typesystem does not support.
    */
-  check(fn: PawCheckFn<T>, message?: string): S;
+  check(fn: PawCheckFn<T>): S;
 }
 
 export type PawTransformFn<T, U> = (val: T) => U;
@@ -382,7 +394,7 @@ class PawStringParser implements PawString {
   private readonly message: string | undefined;
   private reqmessage: string | undefined;
   private refines: RefineFn[];
-  private checks: PawCheck<string>[];
+  private checks: PawCheckFn<string>[];
   private mincfg?: { length: number; message?: string };
   private maxcfg?: { length: number; message?: string };
 
@@ -403,8 +415,8 @@ class PawStringParser implements PawString {
     return this;
   }
 
-  check(fn: PawCheckFn<string>, message?: string): PawString {
-    this.checks.push(new PawCheck(fn, message));
+  check(fn: PawCheckFn<string>): PawString {
+    this.checks.push(fn);
     return this;
   }
 
@@ -430,50 +442,49 @@ class PawStringParser implements PawString {
     return new PawTransformParser(fn, this);
   }
 
-  parse(val: unknown): string {
-    const result = this.safeParse(val);
+  parse(input: unknown): string {
+    const result = this.safeParse(input);
     if (!result.ok) {
       throw new PawParseError(result.error);
     }
     return result.value;
   }
 
-  safeParse(val: unknown): PawResult<string, PawIssue> {
+  safeParse(input: unknown): PawResult<string, PawIssue> {
     for (const fn of this.refines) {
-      val = fn(val);
+      input = fn(input);
     }
 
-    if (val === null || val === undefined) {
-      const message = this.reqmessage ?? this.message ?? `Expected string but received ${val}`;
+    if (input === null || input === undefined) {
+      const message = this.reqmessage ?? this.message ?? `Expected string but received ${input}`;
       return new PawError(new PawRequiredIssue(message));
     }
 
-    if (typeof val !== "string") {
-      const message = this.message ?? `Expected string but received ${typeof val}`;
+    if (typeof input !== "string") {
+      const message = this.message ?? `Expected string but received ${typeof input}`;
       return new PawError(new PawStringIssue(message));
     }
 
-    if (this.mincfg && val.length < this.mincfg.length) {
+    if (this.mincfg && input.length < this.mincfg.length) {
       const minlength = this.mincfg.length;
       const message = this.mincfg.message ?? `String length cannot be less than ${minlength}`;
       return new PawError(new PawStringIssue(message));
     }
 
-    if (this.maxcfg && val.length > this.maxcfg.length) {
+    if (this.maxcfg && input.length > this.maxcfg.length) {
       const maxlength = this.maxcfg.length;
       const message = this.maxcfg.message ?? `String length cannot be more than ${maxlength}`;
       return new PawError(new PawStringIssue(message));
     }
 
-    for (const ch of this.checks) {
-      const valid = ch.fn(val);
-      if (!valid) {
-        const message = ch.message ?? "Valid string but failed check constraint";
-        return new PawError(new PawStringIssue(message));
+    for (const checkfn of this.checks) {
+      const result = checkfn(new PawCheckContext(input, input, this.kind));
+      if (!result.ok) {
+        return result;
       }
     }
 
-    return new PawOk(val);
+    return new PawOk(input);
   }
 }
 
@@ -488,7 +499,7 @@ class PawNumberParser implements PawNumber {
   private mincfg: { value: number; message?: string } | undefined;
   private maxcfg: { value: number; message?: string } | undefined;
   private refines: RefineFn[];
-  private checks: PawCheck<number>[];
+  private checks: PawCheckFn<number>[];
 
   constructor(message?: string) {
     this.message = message;
@@ -497,8 +508,8 @@ class PawNumberParser implements PawNumber {
     this["~standard"] = new PawStandardSchemaProps(this);
   }
 
-  check(fn: PawCheckFn<number>, message?: string): PawNumber {
-    this.checks.push(new PawCheck(fn, message));
+  check(fn: PawCheckFn<number>): PawNumber {
+    this.checks.push(fn);
     return this;
   }
 
@@ -539,55 +550,54 @@ class PawNumberParser implements PawNumber {
     return new PawTransformParser(fn, this);
   }
 
-  parse(val: unknown): number {
-    const result = this.safeParse(val);
+  parse(input: unknown): number {
+    const result = this.safeParse(input);
     if (!result.ok) {
       throw new PawParseError(result.error);
     }
     return result.value;
   }
 
-  safeParse(val: unknown): PawResult<number, PawIssue> {
+  safeParse(input: unknown): PawResult<number, PawIssue> {
     for (const fn of this.refines) {
-      val = fn(val);
+      input = fn(input);
     }
 
-    if (val === null || val === undefined) {
-      const message = this.reqmessage ?? this.message ?? `Expected a number but received ${val}`;
+    if (input === null || input === undefined) {
+      const message = this.reqmessage ?? this.message ?? `Expected a number but received ${input}`;
       return new PawError(new PawRequiredIssue(message));
     }
 
-    if (typeof val !== "number") {
-      const message = this.message ?? `Expected a number but received ${typeof val}`;
+    if (typeof input !== "number") {
+      const message = this.message ?? `Expected a number but received ${typeof input}`;
       return new PawError(new PawNumberIssue(message));
     }
 
-    if (this.intcfg.value && !Number.isInteger(val)) {
+    if (this.intcfg.value && !Number.isInteger(input)) {
       const message = this.intcfg.message ?? "Expected number to be a valid integer";
       return new PawError(new PawNumberIssue(message));
     }
 
-    if (this.mincfg && val < this.mincfg.value) {
+    if (this.mincfg && input < this.mincfg.value) {
       const message =
         this.mincfg.message ?? `Expected number to be less than or equal to ${this.mincfg.value}`;
       return new PawError(new PawNumberIssue(message));
     }
 
-    if (this.maxcfg && val > this.maxcfg.value) {
+    if (this.maxcfg && input > this.maxcfg.value) {
       const message =
         this.maxcfg.message ?? `Expected number to be bigger than or equal to ${this.maxcfg.value}`;
       return new PawError(new PawNumberIssue(message));
     }
 
-    for (const ch of this.checks) {
-      const valid = ch.fn(val);
-      if (!valid) {
-        const message = ch.message ?? "Valid number but failed check constraint";
-        return new PawError(new PawNumberIssue(message));
+    for (const checkfn of this.checks) {
+      const result = checkfn(new PawCheckContext(input, input, this.kind));
+      if (!result.ok) {
+        return result;
       }
     }
 
-    return new PawOk(val);
+    return new PawOk(input);
   }
 }
 
@@ -599,7 +609,7 @@ class PawBooleanParser implements PawBoolean {
   private readonly message: string | undefined;
   private reqmessage: string | undefined;
   private refines: RefineFn[];
-  private checks: PawCheck<boolean>[];
+  private checks: PawCheckFn<boolean>[];
 
   constructor(message?: string) {
     this.message = message;
@@ -608,8 +618,8 @@ class PawBooleanParser implements PawBoolean {
     this["~standard"] = new PawStandardSchemaProps(this);
   }
 
-  check(fn: PawCheckFn<boolean>, message?: string): PawBoolean {
-    this.checks.push(new PawCheck(fn, message));
+  check(fn: PawCheckFn<boolean>): PawBoolean {
+    this.checks.push(fn);
     return this;
   }
 
@@ -635,38 +645,37 @@ class PawBooleanParser implements PawBoolean {
     return new PawTransformParser(fn, this);
   }
 
-  parse(val: unknown): boolean {
-    const result = this.safeParse(val);
+  parse(input: unknown): boolean {
+    const result = this.safeParse(input);
     if (!result.ok) {
       throw new PawParseError(result.error);
     }
     return result.value;
   }
 
-  safeParse(val: unknown): PawResult<boolean, PawIssue> {
+  safeParse(input: unknown): PawResult<boolean, PawIssue> {
     for (const fn of this.refines) {
-      val = fn(val);
+      input = fn(input);
     }
 
-    if (val === null || val === undefined) {
-      const message = this.reqmessage ?? this.message ?? `Expected boolean but received ${val}`;
+    if (input === null || input === undefined) {
+      const message = this.reqmessage ?? this.message ?? `Expected boolean but received ${input}`;
       return new PawError(new PawRequiredIssue(message));
     }
 
-    if (typeof val !== "boolean") {
+    if (typeof input !== "boolean") {
       const message = this.message ?? "Value is not a boolean";
       return new PawError(new PawBooleanIssue(message));
     }
 
-    for (const ch of this.checks) {
-      const valid = ch.fn(val);
-      if (!valid) {
-        const message = ch.message ?? "Valid boolean but failed check constraint";
-        return new PawError(new PawBooleanIssue(message));
+    for (const checkfn of this.checks) {
+      const result = checkfn(new PawCheckContext(input, input, this.kind));
+      if (!result.ok) {
+        return result;
       }
     }
 
-    return new PawOk(val);
+    return new PawOk(input);
   }
 }
 
@@ -676,7 +685,7 @@ class PawUnknownParser implements PawUnknown {
   public readonly "~standard": StandardSchemaV1.Props<unknown, unknown>;
 
   private refines: RefineFn[];
-  private checks: PawCheck<unknown>[];
+  private checks: PawCheckFn<unknown>[];
 
   constructor() {
     this.refines = [];
@@ -684,8 +693,8 @@ class PawUnknownParser implements PawUnknown {
     this["~standard"] = new PawStandardSchemaProps(this);
   }
 
-  check(fn: PawCheckFn<any>, message?: string): PawUnknown {
-    this.checks.push(new PawCheck(fn, message));
+  check(fn: PawCheckFn<any>): PawUnknown {
+    this.checks.push(fn);
     return this;
   }
 
@@ -698,19 +707,27 @@ class PawUnknownParser implements PawUnknown {
     return new PawTransformParser(fn, this);
   }
 
-  parse(val: unknown): unknown {
-    const result = this.safeParse(val);
+  parse(input: unknown): unknown {
+    const result = this.safeParse(input);
     if (!result.ok) {
       throw new PawParseError(result.error);
     }
     return result.value;
   }
 
-  safeParse(val: unknown): PawResult<unknown, PawIssue> {
+  safeParse(input: unknown): PawResult<unknown, PawIssue> {
     for (const fn of this.refines) {
-      val = fn(val);
+      input = fn(input);
     }
-    return new PawOk(val);
+
+    for (const checkfn of this.checks) {
+      const result = checkfn(new PawCheckContext(input, input, this.kind));
+      if (!result.ok) {
+        return result;
+      }
+    }
+
+    return new PawOk(input);
   }
 }
 
@@ -720,7 +737,7 @@ export class PawAnyParser implements PawAny {
   public readonly "~standard": StandardSchemaV1.Props<unknown, any>;
 
   private refines: RefineFn[];
-  private checks: PawCheck<any>[];
+  private checks: PawCheckFn<any>[];
 
   constructor() {
     this.refines = [];
@@ -728,8 +745,8 @@ export class PawAnyParser implements PawAny {
     this["~standard"] = new PawStandardSchemaProps(this);
   }
 
-  check(fn: PawCheckFn<any>, message?: string): PawAny {
-    this.checks.push(new PawCheck(fn, message));
+  check(fn: PawCheckFn<any>): PawAny {
+    this.checks.push(fn);
     return this;
   }
 
@@ -742,19 +759,27 @@ export class PawAnyParser implements PawAny {
     return new PawTransformParser(fn, this);
   }
 
-  parse(val: unknown): any {
-    const result = this.safeParse(val);
+  parse(input: unknown): any {
+    const result = this.safeParse(input);
     if (!result.ok) {
       throw new PawParseError(result.error);
     }
     return result.value;
   }
 
-  safeParse(val: unknown): PawResult<any, PawIssue> {
+  safeParse(input: unknown): PawResult<any, PawIssue> {
     for (const fn of this.refines) {
-      val = fn(val);
+      input = fn(input);
     }
-    return new PawOk(val);
+
+    for (const checkfn of this.checks) {
+      const result = checkfn(new PawCheckContext(input, input, this.kind));
+      if (!result.ok) {
+        return result;
+      }
+    }
+
+    return new PawOk(input);
   }
 }
 
@@ -770,7 +795,7 @@ class PawArrayParser<T extends PawType> implements PawArray<T> {
   private maxcfg: { value: number; message?: string } | undefined;
   private mincfg: { value: number; message?: string } | undefined;
   private refines: RefineFn[];
-  private checks: PawCheck<PawInfer<T>[]>[];
+  private checks: PawCheckFn<PawInfer<T>[]>[];
 
   constructor(unit: T, message?: string) {
     this.unit = unit;
@@ -786,8 +811,8 @@ class PawArrayParser<T extends PawType> implements PawArray<T> {
     return this;
   }
 
-  check(fn: PawCheckFn<PawInfer<T>[]>, message?: string): PawArray<T> {
-    this.checks.push(new PawCheck(fn, message));
+  check(fn: PawCheckFn<PawInfer<T>[]>): PawArray<T> {
+    this.checks.push(fn);
     return this;
   }
 
@@ -831,20 +856,20 @@ class PawArrayParser<T extends PawType> implements PawArray<T> {
     return result.value;
   }
 
-  safeParse(val: unknown): PawResult<PawInfer<T>[], PawIssue> {
+  safeParse(input: unknown): PawResult<PawInfer<T>[], PawIssue> {
     if (this.isImmediate) {
-      return this.safeParseImmediate(val);
+      return this.safeParseImmediate(input);
     } else {
-      return this.safeParseRetained(val);
+      return this.safeParseRetained(input);
     }
   }
 
-  private safeParseImmediate(val: unknown): PawResult<PawInfer<T>[], PawIssue> {
+  private safeParseImmediate(input: unknown): PawResult<PawInfer<T>[], PawIssue> {
     for (const fn of this.refines) {
-      val = fn(val);
+      input = fn(input);
     }
 
-    const arr = this.parseArray(val);
+    const arr = this.parseArray(input);
     if (!arr.ok) {
       return arr;
     }
@@ -859,21 +884,21 @@ class PawArrayParser<T extends PawType> implements PawArray<T> {
       }
     }
 
-    const parsed = arr.value as PawInfer<T>[];
-    const checkResult = this.runChecks(parsed);
+    const output = arr.value as PawInfer<T>[];
+    const checkResult = this.runChecks(input, output);
     if (!checkResult.ok) {
       return checkResult;
     }
 
-    return new PawOk(parsed);
+    return new PawOk(output);
   }
 
-  private safeParseRetained(val: unknown): PawResult<PawInfer<T>[], PawIssue> {
+  private safeParseRetained(input: unknown): PawResult<PawInfer<T>[], PawIssue> {
     for (const fn of this.refines) {
-      val = fn(val);
+      input = fn(input);
     }
 
-    const arr = this.parseArray(val);
+    const arr = this.parseArray(input);
     if (!arr.ok) {
       return arr;
     }
@@ -893,76 +918,49 @@ class PawArrayParser<T extends PawType> implements PawArray<T> {
       return new PawError(new PawArraySchemaIssue(message, issues));
     }
 
-    const parsed = arr.value as PawInfer<T>[];
-    const checkResult = this.runChecks(parsed);
+    const output = arr.value as PawInfer<T>[];
+    const checkResult = this.runChecks(input, output);
     if (!checkResult.ok) {
       return checkResult;
     }
 
-    return new PawOk(parsed);
+    return new PawOk(output);
   }
 
-  private parseArray(val: unknown): PawResult<any[], PawIssue> {
-    if (val === null || val === undefined) {
-      const message = this.reqmessage ?? this.message ?? `Expected array but received ${val}`;
+  private parseArray(input: unknown): PawResult<any[], PawIssue> {
+    if (input === null || input === undefined) {
+      const message = this.reqmessage ?? this.message ?? `Expected array but received ${input}`;
       return new PawError(new PawRequiredIssue(message));
     }
 
-    if (!Array.isArray(val)) {
-      const message = this.message ?? `Expected array but received ${typeof val}`;
+    if (!Array.isArray(input)) {
+      const message = this.message ?? `Expected array but received ${typeof input}`;
       return new PawError(new PawArrayTypeIssue(message));
     }
 
-    if (this.maxcfg != null && val.length > this.maxcfg.value) {
+    if (this.maxcfg != null && input.length > this.maxcfg.value) {
       const message =
         this.maxcfg.message ?? `Array cannot have more than ${this.maxcfg.value} items`;
       return new PawError(new PawArrayTypeIssue(message));
     }
 
-    if (this.mincfg != null && val.length < this.mincfg.value) {
+    if (this.mincfg != null && input.length < this.mincfg.value) {
       const message =
         this.mincfg.message ?? `Array cannot have less than ${this.mincfg.value} items`;
       return new PawError(new PawArrayTypeIssue(message));
     }
 
-    return new PawOk(val);
+    return new PawOk(input);
   }
 
-  private runChecks(val: PawInfer<T>[]): PawResult<void, PawIssue> {
-    for (const ch of this.checks) {
-      const valid = ch.fn(val);
-      if (!valid) {
-        const message = ch.message ?? "Valid array but failed check constraint";
-        return new PawError(new PawArrayTypeIssue(message));
+  private runChecks(input: unknown, output: PawInfer<T>[]): PawResult<void, PawIssue> {
+    for (const checkfn of this.checks) {
+      const result = checkfn(new PawCheckContext(input, output, this.kind));
+      if (!result.ok) {
+        return result;
       }
     }
     return new PawOk(undefined);
-  }
-}
-
-// this idea does not work because I can't get the path correctly when
-// having a nested path with a depth bigger than 2
-class PawTrackedParser<S extends PawSchema<string, any>> {
-  public readonly path: PawIssuePath;
-  private readonly schema: S;
-
-  constructor(schema: S, path: PawIssuePath) {
-    this.schema = schema;
-    this.path = path;
-  }
-
-  safeParse(val: unknown): PawResult<ReturnType<S["parse"]>, PawIssue> {
-    const result = this.schema.safeParse(val);
-    if (result.ok) {
-      return result;
-    }
-
-    const path = this.path.concat(result.error.path ?? []);
-    // HACK: set new `path` while keeping it readonly in `PawIssue`. Maybe
-    // another approach would be to just clone the `PawIssue` to set the `path`
-    // correctly
-    Object.assign(result.error, { path });
-    return result;
   }
 }
 
@@ -976,7 +974,7 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
   private isImmediate: boolean;
   private reqmessage: string | undefined;
   private refines: RefineFn[];
-  private checks: PawCheck<PawParsedObject<T>>[];
+  private checks: PawCheckFn<PawParsedObject<T>>[];
   private isStrict: boolean;
   private isPathed: boolean;
 
@@ -1002,7 +1000,7 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
     clone.isStrict = this.isStrict;
     clone.isPathed = this.isPathed;
     this.refines.forEach((fn) => clone.refine(fn));
-    this.checks.forEach((ck) => clone.check(ck.fn, ck.message));
+    this.checks.forEach((ck) => clone.check(ck));
     return clone;
   }
 
@@ -1014,8 +1012,8 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
     return new PawNullableParser(this);
   }
 
-  check(fn: PawCheckFn<PawParsedObject<T>>, message?: string): PawObject<T> {
-    this.checks.push(new PawCheck(fn, message));
+  check(fn: PawCheckFn<PawParsedObject<T>>): PawObject<T> {
+    this.checks.push(fn);
     return this;
   }
 
@@ -1066,14 +1064,14 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
     return result;
   }
 
-  private safeParseImmediate(val: unknown): PawResult<PawParsedObject<T>, PawIssue> {
-    val = this.refined(val);
-    const obj = this.parseObject(val);
+  private safeParseImmediate(input: unknown): PawResult<PawParsedObject<T>, PawIssue> {
+    input = this.refined(input);
+    const obj = this.parseObject(input);
     if (!obj.ok) {
       return obj;
     }
 
-    let parsed: PawParsedObject<T>;
+    let output: PawParsedObject<T>;
     if (this.isStrict) {
       const strict: Record<string, any> = {};
       for (const k in this.fields) {
@@ -1086,7 +1084,7 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
         }
         strict[k] = result.value;
       }
-      parsed = strict as PawParsedObject<T>;
+      output = strict as PawParsedObject<T>;
     } else {
       for (const k in this.fields) {
         const v = obj.value[k];
@@ -1097,26 +1095,26 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
           return new PawError(new PawObjectSchemaIssue(message, [issue]));
         }
       }
-      parsed = obj.value as PawParsedObject<T>;
+      output = obj.value as PawParsedObject<T>;
     }
 
-    const checkResult = this.runChecks(parsed);
+    const checkResult = this.runChecks(input, output);
     if (!checkResult.ok) {
       return checkResult;
     }
 
-    return new PawOk(parsed);
+    return new PawOk(output);
   }
 
-  private safeParseRetained(val: unknown): PawResult<PawParsedObject<T>, PawIssue> {
-    val = this.refined(val);
-    const obj = this.parseObject(val);
+  private safeParseRetained(input: unknown): PawResult<PawParsedObject<T>, PawIssue> {
+    input = this.refined(input);
+    const obj = this.parseObject(input);
     if (!obj.ok) {
       return obj;
     }
 
     const issues: PawObjectFieldIssue[] = [];
-    let parsed: PawParsedObject<T>;
+    let output: PawParsedObject<T>;
     if (this.isStrict) {
       const strict: Record<string, any> = {};
       for (const k in this.fields) {
@@ -1128,7 +1126,7 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
           strict[k] = result.value;
         }
       }
-      parsed = strict as PawParsedObject<T>;
+      output = strict as PawParsedObject<T>;
     } else {
       for (const k in this.fields) {
         const v = obj.value[k];
@@ -1137,7 +1135,7 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
           issues.push({ field: k, issue: parsed.error });
         }
       }
-      parsed = obj.value as PawParsedObject<T>;
+      output = obj.value as PawParsedObject<T>;
     }
 
     if (issues.length > 0) {
@@ -1145,12 +1143,12 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
       return new PawError(new PawObjectSchemaIssue(message, issues));
     }
 
-    const checkResult = this.runChecks(parsed);
+    const checkResult = this.runChecks(input, output);
     if (!checkResult.ok) {
       return checkResult;
     }
 
-    return new PawOk(parsed);
+    return new PawOk(output);
   }
 
   private refined(val: unknown): unknown {
@@ -1174,12 +1172,11 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
     return new PawOk(val as Record<string, unknown>);
   }
 
-  private runChecks(val: PawParsedObject<T>): PawResult<void, PawIssue> {
-    for (const ch of this.checks) {
-      const valid = ch.fn(val);
-      if (!valid) {
-        const message = ch.message ?? "Valid object but failed check constraint";
-        return new PawError(new PawObjectTypeIssue(message));
+  private runChecks(input: unknown, output: PawParsedObject<T>): PawResult<void, PawIssue> {
+    for (const checkfn of this.checks) {
+      const result = checkfn(new PawCheckContext(input, output, this.kind));
+      if (!result.ok) {
+        return result;
       }
     }
     return new PawOk(undefined);
@@ -1212,9 +1209,9 @@ class PawLiteralParser<const T extends string | number | boolean> implements Paw
 
   private readonly values: T[];
   private readonly message: string | undefined;
-  private reqMessage: string | undefined;
+  private reqmessage: string | undefined;
   private refines: RefineFn[];
-  private checks: PawCheck<T>[];
+  private checks: PawCheckFn<T>[];
 
   constructor(values: T[], message?: string) {
     this.values = values;
@@ -1232,13 +1229,13 @@ class PawLiteralParser<const T extends string | number | boolean> implements Paw
     return new PawNullableParser(this);
   }
 
-  check(fn: PawCheckFn<T>, message?: string): PawLiteral<T> {
-    this.checks.push(new PawCheck(fn, message));
+  check(fn: PawCheckFn<T>): PawLiteral<T> {
+    this.checks.push(fn);
     return this;
   }
 
   required(message: string): PawLiteral<T> {
-    this.reqMessage = message;
+    this.reqmessage = message;
     return this;
   }
 
@@ -1251,40 +1248,39 @@ class PawLiteralParser<const T extends string | number | boolean> implements Paw
     return new PawTransformParser(fn, this);
   }
 
-  parse(val: unknown): T {
-    const result = this.safeParse(val);
+  parse(input: unknown): T {
+    const result = this.safeParse(input);
     if (!result.ok) {
       throw new PawParseError(result.error);
     }
     return result.value;
   }
 
-  safeParse(val: unknown): PawResult<T, PawIssue> {
+  safeParse(input: unknown): PawResult<T, PawIssue> {
     for (const fn of this.refines) {
-      val = fn(val);
+      input = fn(input);
     }
 
-    if (val === null || val === undefined) {
-      const message = this.reqMessage ?? `Expected literal but received ${val}`;
+    if (input === null || input === undefined) {
+      const message = this.reqmessage ?? `Expected literal but received ${input}`;
       return new PawError(new PawRequiredIssue(message));
     }
 
-    const idx = this.values.indexOf(val as T);
+    const idx = this.values.indexOf(input as T);
     if (idx < 0) {
       const options = this.values.join(", ");
       const message = this.message ?? `Expected one of the following values: ${options}`;
       return new PawError(new PawLiteralIssue(message));
     }
 
-    for (const ch of this.checks) {
-      const valid = ch.fn(val as T);
-      if (!valid) {
-        const message = ch.message ?? "Valid literal but failed check constraint";
-        return new PawError(new PawLiteralIssue(message));
+    for (const checkfn of this.checks) {
+      const result = checkfn(new PawCheckContext(input, input as T, this.kind));
+      if (!result.ok) {
+        return result;
       }
     }
 
-    return new PawOk(val as T);
+    return new PawOk(input as T);
   }
 }
 
@@ -1295,9 +1291,9 @@ class PawUnionParser<T extends Array<PawSchema<any, any>>> implements PawUnion<T
 
   private readonly schemas: T;
   private readonly message: string | undefined;
-  private reqMessage: string | undefined;
+  private reqmessage: string | undefined;
   private refines: RefineFn[];
-  private checks: PawCheck<PawInfer<T[number]>>[];
+  private checks: PawCheckFn<PawInfer<T[number]>>[];
 
   constructor(schemas: T, message?: string) {
     this.schemas = schemas;
@@ -1315,13 +1311,13 @@ class PawUnionParser<T extends Array<PawSchema<any, any>>> implements PawUnion<T
     return new PawNullableParser(this);
   }
 
-  check(fn: PawCheckFn<PawInfer<T[number]>>, message?: string): PawUnion<T> {
-    this.checks.push(new PawCheck(fn, message));
+  check(fn: PawCheckFn<PawInfer<T[number]>>): PawUnion<T> {
+    this.checks.push(fn);
     return this;
   }
 
   required(message: string): PawUnion<T> {
-    this.reqMessage = message;
+    this.reqmessage = message;
     return this;
   }
 
@@ -1334,35 +1330,34 @@ class PawUnionParser<T extends Array<PawSchema<any, any>>> implements PawUnion<T
     return new PawTransformParser(fn as any, this);
   }
 
-  parse(val: unknown): PawInfer<T[number]> {
-    const result = this.safeParse(val);
+  parse(input: unknown): PawInfer<T[number]> {
+    const result = this.safeParse(input);
     if (!result.ok) {
       throw new PawParseError(result.error);
     }
     return result.value;
   }
 
-  safeParse(val: unknown): PawResult<PawInfer<T[number]>, PawIssue> {
+  safeParse(input: unknown): PawResult<PawInfer<T[number]>, PawIssue> {
     for (const fn of this.refines) {
-      val = fn(val);
+      input = fn(input);
     }
 
     for (const schema of this.schemas) {
-      const parsed = schema.safeParse(val);
+      const parsed = schema.safeParse(input);
       if (parsed.ok) {
-        for (const ch of this.checks) {
-          const valid = ch.fn(parsed.value);
-          if (!valid) {
-            const message = ch.message ?? "Valid union but failed check constraint";
-            return new PawError(new PawUnionIssue(message));
+        for (const checkfn of this.checks) {
+          const result = checkfn(new PawCheckContext(input, parsed.value, this.kind));
+          if (!result.ok) {
+            return result;
           }
         }
         return parsed;
       }
     }
 
-    if (val === null || val === undefined) {
-      const message = this.reqMessage ?? `Expected union but received ${val}`;
+    if (input === null || input === undefined) {
+      const message = this.reqmessage ?? `Expected union but received ${input}`;
       return new PawError(new PawRequiredIssue(message));
     }
 

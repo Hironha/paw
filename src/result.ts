@@ -8,6 +8,10 @@ export class PawOk<T> {
     this.value = value;
   }
 
+  static empty(): PawOk<void> {
+    return new PawOk(undefined);
+  }
+
   /**
    * @throws {Error} Throws an error when `result` is a `PawError`
    */
@@ -25,6 +29,10 @@ export class PawError<E> {
 
   constructor(error: E) {
     this.error = error;
+  }
+
+  static empty(): PawError<void> {
+    return new PawError(undefined);
   }
 
   /**

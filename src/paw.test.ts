@@ -1,7 +1,7 @@
 import { describe, test, expect } from "vitest";
 import * as paw from "./paw";
 import { PawOk, PawError } from "./result";
-import { PawObjectSchemaIssue, PawRequiredIssue, PawStringIssue } from "./issue";
+import { PawCheckIssue, PawObjectSchemaIssue, PawRequiredIssue, PawStringIssue } from "./issue";
 
 describe("paw", () => {
   describe("string", () => {
@@ -35,16 +35,16 @@ describe("paw", () => {
     });
 
     test("string check works", () => {
-      const str = paw.string().check((v) => v.includes("/"), "invalid pattern");
+      const checkmsg = "invalid pattern";
+      const str = paw
+        .string()
+        .check((ctx) => (ctx.output.includes("/") ? ctx.ok() : ctx.error(checkmsg)));
       let result = str.safeParse("me/nina");
       expect(result.ok).toBeTruthy();
 
       result = str.safeParse("test");
       const error = PawError.unwrap(result);
-      expect(error).toMatchObject({
-        kind: "string",
-        message: "invalid pattern",
-      });
+      expect(error).toStrictEqual(new PawCheckIssue(checkmsg, "string"));
     });
 
     test("string transform works", () => {
@@ -80,144 +80,144 @@ describe("paw", () => {
     });
   });
 
-  test("number parser works", () => {
-    const num = paw.number();
+  describe("number", () => {
+    test("number parser works", () => {
+      const num = paw.number();
 
-    expect(num.parse(2)).toStrictEqual(2);
-    expect(PawOk.unwrap(num.safeParse(2))).toStrictEqual(2);
-    expect(!num.safeParse(null).ok, "null is not a number").toBeTruthy();
-    expect(!num.safeParse("test").ok, "test it not a number").toBeTruthy();
-    expect(!num.safeParse({}).ok, "object is not a number").toBeTruthy();
-  });
+      expect(num.parse(2)).toStrictEqual(2);
+      expect(PawOk.unwrap(num.safeParse(2))).toStrictEqual(2);
+      expect(!num.safeParse(null).ok, "null is not a number").toBeTruthy();
+      expect(!num.safeParse("test").ok, "test it not a number").toBeTruthy();
+      expect(!num.safeParse({}).ok, "object is not a number").toBeTruthy();
+    });
 
-  test("number parse error returns  correct number error", () => {
-    const num = paw.number("invalid number");
-    const result = num.safeParse("test");
-    expect(!result.ok, "test is not a number").toBeTruthy();
+    test("number parse error returns  correct number error", () => {
+      const num = paw.number("invalid number");
+      const result = num.safeParse("test");
+      expect(!result.ok, "test is not a number").toBeTruthy();
 
-    const error = PawError.unwrap(result);
-    expect(error).toMatchObject({
-      kind: "number",
-      message: "invalid number",
+      const error = PawError.unwrap(result);
+      expect(error).toMatchObject({
+        kind: "number",
+        message: "invalid number",
+      });
+    });
+
+    test("number min works", () => {
+      const num = paw.number().min(10);
+
+      expect(num.parse(12)).toStrictEqual(12);
+      expect(num.parse(10.1)).toStrictEqual(10.1);
+      expect(!num.safeParse(9).ok, "9 is less than 10").toBeTruthy();
+      expect(!num.safeParse(9.9).ok, "9.9 is less than 10").toBeTruthy();
+      expect(!num.safeParse("test").ok, "test is not a number").toBeTruthy();
+    });
+
+    test("number max works", () => {
+      const num = paw.number().max(10);
+
+      expect(num.parse(9)).toStrictEqual(9);
+      expect(num.parse(9.9)).toStrictEqual(9.9);
+      expect(!num.safeParse(11).ok, "11 is bigger than 10").toBeTruthy();
+      expect(!num.safeParse(10.1).ok, "10.1 is bigger than 10").toBeTruthy();
+      expect(!num.safeParse("test").ok, "test is not a number").toBeTruthy();
+    });
+
+    test("number refine works", () => {
+      const num = paw.number().refine((val) => {
+        if (val == null) {
+          return val;
+        }
+        const num = Number(val);
+        return Number.isNaN(num) ? val : num;
+      });
+
+      expect(num.parse("12")).toStrictEqual(12);
+      expect(num.parse("1.32")).toStrictEqual(1.32);
+      expect(!num.safeParse("false").ok, "false cannot be converted to number").toBeTruthy();
+      expect(!num.safeParse(null).ok, "null cannot be converted to number").toBeTruthy();
+      expect(!num.safeParse({}).ok, "object cannot be converted to number").toBeTruthy();
+    });
+
+    test("number int works", () => {
+      const num = paw.number().int();
+
+      expect(num.parse(10)).toStrictEqual(10);
+      expect(!num.safeParse(10.1).ok, "10.1 is not an int").toBeTruthy();
+      expect(!num.safeParse("test").ok, "test is not an int").toBeTruthy();
+    });
+
+    test("number check works", () => {
+      const checkmsg = "not a minor age";
+      const num = paw.number().check((ctx) => (ctx.output < 18 ? ctx.ok() : ctx.error(checkmsg)));
+      let result = num.safeParse(12);
+      expect(result.ok).toBeTruthy();
+
+      result = num.safeParse(22);
+      expect(!result.ok).toBeTruthy();
+      const error = PawError.unwrap(result);
+      expect(error).toStrictEqual(new PawCheckIssue(checkmsg, "number"));
+    });
+
+    test("number transform works", () => {
+      const num = paw.number().transform((n) => n.toString());
+      const result = num.safeParse(2);
+      expect(result.ok).toBeTruthy();
+      const value = PawOk.unwrap(result);
+      expect(value).toStrictEqual("2");
     });
   });
 
-  test("number min works", () => {
-    const num = paw.number().min(10);
+  describe("boolean", () => {
+    test("boolean parser works", () => {
+      const bool = paw.boolean();
 
-    expect(num.parse(12)).toStrictEqual(12);
-    expect(num.parse(10.1)).toStrictEqual(10.1);
-    expect(!num.safeParse(9).ok, "9 is less than 10").toBeTruthy();
-    expect(!num.safeParse(9.9).ok, "9.9 is less than 10").toBeTruthy();
-    expect(!num.safeParse("test").ok, "test is not a number").toBeTruthy();
-  });
-
-  test("number max works", () => {
-    const num = paw.number().max(10);
-
-    expect(num.parse(9)).toStrictEqual(9);
-    expect(num.parse(9.9)).toStrictEqual(9.9);
-    expect(!num.safeParse(11).ok, "11 is bigger than 10").toBeTruthy();
-    expect(!num.safeParse(10.1).ok, "10.1 is bigger than 10").toBeTruthy();
-    expect(!num.safeParse("test").ok, "test is not a number").toBeTruthy();
-  });
-
-  test("number refine works", () => {
-    const num = paw.number().refine((val) => {
-      if (val == null) {
-        return val;
-      }
-      const num = Number(val);
-      return Number.isNaN(num) ? val : num;
+      expect(bool.parse(true)).toStrictEqual(true);
+      expect(bool.parse(false)).toStrictEqual(false);
+      expect(!bool.safeParse("test").ok, "test is not a boolean").toBeTruthy();
+      expect(!bool.safeParse(null).ok, "null is not a boolean").toBeTruthy();
+      expect(!bool.safeParse({}).ok, "object is not a boolean").toBeTruthy();
     });
 
-    expect(num.parse("12")).toStrictEqual(12);
-    expect(num.parse("1.32")).toStrictEqual(1.32);
-    expect(!num.safeParse("false").ok, "false cannot be converted to number").toBeTruthy();
-    expect(!num.safeParse(null).ok, "null cannot be converted to number").toBeTruthy();
-    expect(!num.safeParse({}).ok, "object cannot be converted to number").toBeTruthy();
-  });
+    test("boolean parse error returns boolean error", () => {
+      const bool = paw.boolean("invalid boolean");
+      const result = bool.safeParse("test");
+      expect(!result.ok, "test is not a boolean").toBeTruthy();
 
-  test("number int works", () => {
-    const num = paw.number().int();
-
-    expect(num.parse(10)).toStrictEqual(10);
-    expect(!num.safeParse(10.1).ok, "10.1 is not an int").toBeTruthy();
-    expect(!num.safeParse("test").ok, "test is not an int").toBeTruthy();
-  });
-
-  test("number check works", () => {
-    const num = paw.number().check((n) => n < 18, "not a minor age");
-    let result = num.safeParse(12);
-    expect(result.ok).toBeTruthy();
-
-    result = num.safeParse(22);
-    expect(!result.ok).toBeTruthy();
-    const error = PawError.unwrap(result);
-    expect(error).toMatchObject({
-      kind: "number",
-      message: "not a minor age",
+      const error = PawError.unwrap(result);
+      expect(error).toMatchObject({
+        kind: "boolean",
+        message: "invalid boolean",
+      });
     });
-  });
 
-  test("number transform works", () => {
-    const num = paw.number().transform((n) => n.toString());
-    const result = num.safeParse(2);
-    expect(result.ok).toBeTruthy();
-    const value = PawOk.unwrap(result);
-    expect(value).toStrictEqual("2");
-  });
+    test("boolean refine works", () => {
+      const bool = paw.boolean().refine((val) => !!val);
 
-  test("boolean parser works", () => {
-    const bool = paw.boolean();
-
-    expect(bool.parse(true)).toStrictEqual(true);
-    expect(bool.parse(false)).toStrictEqual(false);
-    expect(!bool.safeParse("test").ok, "test is not a boolean").toBeTruthy();
-    expect(!bool.safeParse(null).ok, "null is not a boolean").toBeTruthy();
-    expect(!bool.safeParse({}).ok, "object is not a boolean").toBeTruthy();
-  });
-
-  test("boolean parse error returns boolean error", () => {
-    const bool = paw.boolean("invalid boolean");
-    const result = bool.safeParse("test");
-    expect(!result.ok, "test is not a boolean").toBeTruthy();
-
-    const error = PawError.unwrap(result);
-    expect(error).toMatchObject({
-      kind: "boolean",
-      message: "invalid boolean",
+      expect(bool.parse(true)).toStrictEqual(true);
+      expect(bool.parse(false)).toStrictEqual(false);
+      expect(bool.parse("test"), "refined to trueish").toStrictEqual(true);
     });
-  });
 
-  test("boolean refine works", () => {
-    const bool = paw.boolean().refine((val) => !!val);
+    test("boolean check works", () => {
+      const checkmsg = "boolean should be true";
+      const bool = paw.boolean().check((ctx) => (ctx.output ? ctx.ok() : ctx.error(checkmsg)));
+      let result = bool.safeParse(true);
+      expect(result.ok).toBeTruthy();
 
-    expect(bool.parse(true)).toStrictEqual(true);
-    expect(bool.parse(false)).toStrictEqual(false);
-    expect(bool.parse("test"), "refined to trueish").toStrictEqual(true);
-  });
-
-  test("boolean check works", () => {
-    const bool = paw.boolean().check((b) => b, "boolean should be true");
-    let result = bool.safeParse(true);
-    expect(result.ok).toBeTruthy();
-
-    result = bool.safeParse(false);
-    expect(!result.ok).toBeTruthy();
-    const error = PawError.unwrap(result);
-    expect(error).toMatchObject({
-      kind: "boolean",
-      message: "boolean should be true",
+      result = bool.safeParse(false);
+      expect(!result.ok).toBeTruthy();
+      const error = PawError.unwrap(result);
+      expect(error).toStrictEqual(new PawCheckIssue(checkmsg, "boolean"));
     });
-  });
 
-  test("boolean transform works", () => {
-    const bool = paw.boolean().transform((b) => b.toString());
-    const result = bool.safeParse(true);
-    expect(result.ok).toBeTruthy();
-    const value = PawOk.unwrap(result);
-    expect(value).toStrictEqual("true");
+    test("boolean transform works", () => {
+      const bool = paw.boolean().transform((b) => b.toString());
+      const result = bool.safeParse(true);
+      expect(result.ok).toBeTruthy();
+      const value = PawOk.unwrap(result);
+      expect(value).toStrictEqual("true");
+    });
   });
 
   test("optional parser works", () => {
@@ -282,9 +282,10 @@ describe("paw", () => {
   });
 
   test("array immediate check works", () => {
+    const checkmsg = "first should be nina";
     const arr = paw
       .array(paw.string())
-      .check((arr) => arr[0] === "nina", "first should be nina")
+      .check((ctx) => (ctx.output[0] === "nina" ? ctx.ok() : ctx.error(checkmsg)))
       .immediate();
 
     let result = arr.safeParse(["nina"]);
@@ -293,14 +294,14 @@ describe("paw", () => {
     result = arr.safeParse(["test", "nina"]);
     expect(!result.ok).toBeTruthy();
     const error = PawError.unwrap(result);
-    expect(error).toMatchObject({
-      kind: "array-type",
-      message: "first should be nina",
-    });
+    expect(error).toStrictEqual(new PawCheckIssue(checkmsg, "array"));
   });
 
   test("array retained check works", () => {
-    const arr = paw.array(paw.string()).check((arr) => arr[0] === "nina", "first should be nina");
+    const checkmsg = "first should be nina";
+    const arr = paw
+      .array(paw.string())
+      .check((ctx) => (ctx.output[0] === "nina" ? ctx.ok() : ctx.error(checkmsg)));
 
     let result = arr.safeParse(["nina"]);
     expect(result.ok).toBeTruthy();
@@ -308,10 +309,7 @@ describe("paw", () => {
     result = arr.safeParse(["test", "nina"]);
     expect(!result.ok).toBeTruthy();
     const error = PawError.unwrap(result);
-    expect(error).toMatchObject({
-      kind: "array-type",
-      message: "first should be nina",
-    });
+    expect(error).toStrictEqual(new PawCheckIssue(checkmsg, "array"));
   });
 
   test("array immediate parse error returns array type error", () => {
@@ -663,9 +661,10 @@ describe("paw", () => {
   });
 
   test("immediate object parse check works", () => {
+    const checkmsg = "name and lastname should be different";
     const obj = paw
       .object({ name: paw.string(), lastname: paw.string() })
-      .check((obj) => obj.name !== obj.lastname, "name and lastname should be different")
+      .check((ctx) => (ctx.output.name !== ctx.output.lastname ? ctx.ok() : ctx.error(checkmsg)))
       .immediate();
 
     let result = obj.safeParse({ name: "nina", lastname: "maria" });
@@ -674,16 +673,14 @@ describe("paw", () => {
     result = obj.safeParse({ name: "nina", lastname: "nina" });
     expect(!result.ok).toBeTruthy();
     const error = PawError.unwrap(result);
-    expect(error).toMatchObject({
-      kind: "object-type",
-      message: "name and lastname should be different",
-    });
+    expect(error).toStrictEqual(new PawCheckIssue(checkmsg, "object"));
   });
 
   test("retained object parse check works", () => {
+    const checkmsg = "name and lastname should be different";
     const obj = paw
       .object({ name: paw.string(), lastname: paw.string() })
-      .check((obj) => obj.name !== obj.lastname, "name and lastname should be different");
+      .check((ctx) => (ctx.output.name !== ctx.output.lastname ? ctx.ok() : ctx.error(checkmsg)));
 
     let result = obj.safeParse({ name: "nina", lastname: "maria" });
     expect(result.ok).toBeTruthy();
@@ -691,10 +688,7 @@ describe("paw", () => {
     result = obj.safeParse({ name: "nina", lastname: "nina" });
     expect(!result.ok).toBeTruthy();
     const error = PawError.unwrap(result);
-    expect(error).toMatchObject({
-      kind: "object-type",
-      message: "name and lastname should be different",
-    });
+    expect(error).toStrictEqual(new PawCheckIssue(checkmsg, "object"));
   });
 
   test("object transform works", () => {
@@ -740,20 +734,18 @@ describe("paw", () => {
   });
 
   test("literal check works", () => {
+    const checkmsg = "not a domestic animal";
     const domestic = ["cat"];
     const animals = paw
       .literal(["cat", "tiger"])
-      .check((animal) => domestic.includes(animal), "not a domestic animal");
+      .check((ctx) => (domestic.includes(ctx.output) ? ctx.ok() : ctx.error(checkmsg)));
     let result = animals.safeParse("cat");
     expect(result.ok).toBeTruthy();
 
     result = animals.safeParse("tiger");
     expect(!result.ok).toBeTruthy();
     const error = PawError.unwrap(result);
-    expect(error).toMatchObject({
-      kind: "literal",
-      message: "not a domestic animal",
-    });
+    expect(error).toStrictEqual(new PawCheckIssue(checkmsg, "literal"));
   });
 
   test("literal transform works", () => {
@@ -817,22 +809,19 @@ describe("paw", () => {
   });
 
   test("union check works", () => {
-    const union = paw
-      .union([paw.string().optional(), paw.number()])
-      .check(
-        (union) => typeof union === "string" && union === "nina",
-        "if string then should be nina",
-      );
+    const checkmsg = "if string then should be nina";
+    const union = paw.union([paw.string().optional(), paw.number()]).check((ctx) => {
+      return typeof ctx.output === "string" && ctx.output === "nina"
+        ? ctx.ok()
+        : ctx.error(checkmsg);
+    });
     let result = union.safeParse("nina");
-    expect(result.ok).toBeTruthy();
+    expect(result.ok, "nina should satisfy union and check constraint").toBeTruthy();
 
     result = union.safeParse("test");
-    expect(!result.ok).toBeTruthy();
+    expect(!result.ok, "test should fail check constraint").toBeTruthy();
     const error = PawError.unwrap(result);
-    expect(error).toMatchObject({
-      kind: "union",
-      message: "if string then should be nina",
-    });
+    expect(error).toStrictEqual(new PawCheckIssue(checkmsg, "union"));
   });
 
   test("union transform works", () => {
