@@ -1,7 +1,7 @@
 import { describe, test, expect } from "vitest";
 import * as paw from "./paw";
 import { PawOk, PawError } from "./result";
-import { PawCheckIssue, PawObjectSchemaIssue, PawRequiredIssue, PawStringIssue } from "./issue";
+import { PawCheckIssue, PawObjectSchemaIssue, PawRequiredIssue } from "./issue";
 
 describe("paw", () => {
   describe("string", () => {
