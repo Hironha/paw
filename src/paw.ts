@@ -16,6 +16,7 @@ import {
   PawParseError,
   type PawIssuePath,
   PawCheckIssue,
+  PawRefineIssue,
 } from "./issue";
 import type { StandardSchemaV1 } from "./standard-schema";
 import type { MergeRecord, Pretty } from "./types";
@@ -40,7 +41,26 @@ type PawParsedObject<T extends Record<string, PawType>> = {
   [K in keyof T]: PawInfer<T[K]>;
 } & {};
 
-export type RefineFn<T = any> = (val: unknown) => T;
+export class PawRefineContext {
+  readonly input: unknown;
+  readonly src: PawType["kind"];
+
+  constructor(input: unknown, src: PawType["kind"]) {
+    this.input = input;
+    this.src = src;
+  }
+
+  ok<T>(output: T): PawOk<T> {
+    return new PawOk(output);
+  }
+
+  error(message: string, path?: PawIssuePath): PawError<PawRefineIssue> {
+    const issue = new PawRefineIssue(message, this.src, path);
+    return new PawError(issue);
+  }
+}
+
+export type PawRefineFn<O = any> = (ctx: PawRefineContext) => PawResult<O, PawIssue>;
 
 export interface PawParser<T> {
   /**
@@ -60,7 +80,7 @@ export interface PawSchema<N extends string, T> extends PawParser<T>, StandardSc
 
 export interface PawRefinable<S extends PawParser<any>> {
   /** Transform the value before validation */
-  refine<T>(fn: RefineFn<T>): S;
+  refine<T>(fn: PawRefineFn<T>): S;
 }
 
 export class PawCheckContext<T> {
@@ -308,7 +328,7 @@ export class PawOptionalParser<T extends PawSchema<string, any>> implements PawO
   public readonly "~standard": StandardSchemaV1.Props<unknown, ReturnType<T["parse"]> | undefined>;
 
   private readonly parser: T;
-  private refines: RefineFn[];
+  private refines: PawRefineFn[];
 
   constructor(parser: T) {
     this.parser = parser;
@@ -316,7 +336,7 @@ export class PawOptionalParser<T extends PawSchema<string, any>> implements PawO
     this["~standard"] = new PawStandardSchemaProps(this);
   }
 
-  refine<U>(fn: RefineFn<U>): PawOptional<T> {
+  refine<U>(fn: PawRefineFn<U>): PawOptional<T> {
     this.refines.push(fn);
     return this;
   }
@@ -329,16 +349,20 @@ export class PawOptionalParser<T extends PawSchema<string, any>> implements PawO
     return result.value;
   }
 
-  safeParse(val: unknown): PawResult<ReturnType<T["parse"]> | undefined, PawIssue> {
-    for (const fn of this.refines) {
-      val = fn(val);
+  safeParse(input: unknown): PawResult<ReturnType<T["parse"]> | undefined, PawIssue> {
+    for (const refinefn of this.refines) {
+      const result = refinefn(new PawRefineContext(input, this.kind));
+      if (!result.ok) {
+        return result;
+      }
+      input = result.value;
     }
 
-    if (val === undefined) {
-      return new PawOk(val);
+    if (input === undefined) {
+      return new PawOk(input);
     }
 
-    return this.parser.safeParse(val);
+    return this.parser.safeParse(input);
   }
 }
 
@@ -348,7 +372,7 @@ export class PawNullableParser<T extends PawSchema<string, any>> implements PawN
   public readonly "~standard": StandardSchemaV1.Props<unknown, ReturnType<T["parse"]> | null>;
 
   private readonly parser: T;
-  private refines: RefineFn[];
+  private refines: PawRefineFn[];
 
   constructor(parser: T) {
     this.parser = parser;
@@ -360,7 +384,7 @@ export class PawNullableParser<T extends PawSchema<string, any>> implements PawN
     return new PawOptionalParser(this);
   }
 
-  refine<U>(fn: RefineFn<U>): PawNullable<T> {
+  refine<U>(fn: PawRefineFn<U>): PawNullable<T> {
     this.refines.push(fn);
     return this;
   }
@@ -373,16 +397,20 @@ export class PawNullableParser<T extends PawSchema<string, any>> implements PawN
     return result.value;
   }
 
-  safeParse(val: unknown): PawResult<ReturnType<T["parse"]> | null, PawIssue> {
-    for (const fn of this.refines) {
-      val = fn(val);
+  safeParse(input: unknown): PawResult<ReturnType<T["parse"]> | null, PawIssue> {
+    for (const refinefn of this.refines) {
+      const result = refinefn(new PawRefineContext(input, this.kind));
+      if (!result.ok) {
+        return result;
+      }
+      input = result.value;
     }
 
-    if (val === null) {
-      return new PawOk(val);
+    if (input === null) {
+      return new PawOk(input);
     }
 
-    return this.parser.safeParse(val);
+    return this.parser.safeParse(input);
   }
 }
 
@@ -393,7 +421,7 @@ class PawStringParser implements PawString {
 
   private readonly message: string | undefined;
   private reqmessage: string | undefined;
-  private refines: RefineFn[];
+  private refines: PawRefineFn[];
   private checks: PawCheckFn<string>[];
   private mincfg?: { length: number; message?: string };
   private maxcfg?: { length: number; message?: string };
@@ -433,7 +461,7 @@ class PawStringParser implements PawString {
     return new PawNullableParser(this);
   }
 
-  refine<T>(fn: RefineFn<T>): PawString {
+  refine<T>(fn: PawRefineFn<T>): PawString {
     this.refines.push(fn);
     return this;
   }
@@ -451,8 +479,12 @@ class PawStringParser implements PawString {
   }
 
   safeParse(input: unknown): PawResult<string, PawIssue> {
-    for (const fn of this.refines) {
-      input = fn(input);
+    for (const refinefn of this.refines) {
+      const result = refinefn(new PawRefineContext(input, this.kind));
+      if (!result.ok) {
+        return result;
+      }
+      input = result.value;
     }
 
     if (input === null || input === undefined) {
@@ -498,7 +530,7 @@ class PawNumberParser implements PawNumber {
   private intcfg: { value: boolean; message?: string } = { value: false };
   private mincfg: { value: number; message?: string } | undefined;
   private maxcfg: { value: number; message?: string } | undefined;
-  private refines: RefineFn[];
+  private refines: PawRefineFn[];
   private checks: PawCheckFn<number>[];
 
   constructor(message?: string) {
@@ -541,7 +573,7 @@ class PawNumberParser implements PawNumber {
     return this;
   }
 
-  refine<T>(fn: RefineFn<T>): PawNumber {
+  refine<T>(fn: PawRefineFn<T>): PawNumber {
     this.refines.push(fn);
     return this;
   }
@@ -559,8 +591,12 @@ class PawNumberParser implements PawNumber {
   }
 
   safeParse(input: unknown): PawResult<number, PawIssue> {
-    for (const fn of this.refines) {
-      input = fn(input);
+    for (const refinefn of this.refines) {
+      const result = refinefn(new PawRefineContext(input, this.kind));
+      if (!result.ok) {
+        return result;
+      }
+      input = result.value;
     }
 
     if (input === null || input === undefined) {
@@ -608,7 +644,7 @@ class PawBooleanParser implements PawBoolean {
 
   private readonly message: string | undefined;
   private reqmessage: string | undefined;
-  private refines: RefineFn[];
+  private refines: PawRefineFn[];
   private checks: PawCheckFn<boolean>[];
 
   constructor(message?: string) {
@@ -636,7 +672,7 @@ class PawBooleanParser implements PawBoolean {
     return this;
   }
 
-  refine<T>(fn: RefineFn<T>): PawBoolean {
+  refine<T>(fn: PawRefineFn<T>): PawBoolean {
     this.refines.push(fn);
     return this;
   }
@@ -654,8 +690,12 @@ class PawBooleanParser implements PawBoolean {
   }
 
   safeParse(input: unknown): PawResult<boolean, PawIssue> {
-    for (const fn of this.refines) {
-      input = fn(input);
+    for (const refinefn of this.refines) {
+      const result = refinefn(new PawRefineContext(input, this.kind));
+      if (!result.ok) {
+        return result;
+      }
+      input = result.value;
     }
 
     if (input === null || input === undefined) {
@@ -684,7 +724,7 @@ class PawUnknownParser implements PawUnknown {
   public readonly kind = UNKNOWN;
   public readonly "~standard": StandardSchemaV1.Props<unknown, unknown>;
 
-  private refines: RefineFn[];
+  private refines: PawRefineFn[];
   private checks: PawCheckFn<unknown>[];
 
   constructor() {
@@ -698,7 +738,7 @@ class PawUnknownParser implements PawUnknown {
     return this;
   }
 
-  refine<T>(fn: RefineFn<T>): PawUnknown {
+  refine<T>(fn: PawRefineFn<T>): PawUnknown {
     this.refines.push(fn);
     return this;
   }
@@ -716,8 +756,12 @@ class PawUnknownParser implements PawUnknown {
   }
 
   safeParse(input: unknown): PawResult<unknown, PawIssue> {
-    for (const fn of this.refines) {
-      input = fn(input);
+    for (const refinefn of this.refines) {
+      const result = refinefn(new PawRefineContext(input, this.kind));
+      if (!result.ok) {
+        return result;
+      }
+      input = result.value;
     }
 
     for (const checkfn of this.checks) {
@@ -736,7 +780,7 @@ export class PawAnyParser implements PawAny {
   public readonly kind = ANY;
   public readonly "~standard": StandardSchemaV1.Props<unknown, any>;
 
-  private refines: RefineFn[];
+  private refines: PawRefineFn[];
   private checks: PawCheckFn<any>[];
 
   constructor() {
@@ -750,7 +794,7 @@ export class PawAnyParser implements PawAny {
     return this;
   }
 
-  refine<T>(fn: RefineFn<T>): PawAny {
+  refine<T>(fn: PawRefineFn<T>): PawAny {
     this.refines.push(fn);
     return this;
   }
@@ -768,8 +812,12 @@ export class PawAnyParser implements PawAny {
   }
 
   safeParse(input: unknown): PawResult<any, PawIssue> {
-    for (const fn of this.refines) {
-      input = fn(input);
+    for (const refinefn of this.refines) {
+      const result = refinefn(new PawRefineContext(input, this.kind));
+      if (!result.ok) {
+        return result;
+      }
+      input = result.value;
     }
 
     for (const checkfn of this.checks) {
@@ -794,7 +842,7 @@ class PawArrayParser<T extends PawType> implements PawArray<T> {
   private reqmessage: string | undefined;
   private maxcfg: { value: number; message?: string } | undefined;
   private mincfg: { value: number; message?: string } | undefined;
-  private refines: RefineFn[];
+  private refines: PawRefineFn[];
   private checks: PawCheckFn<PawInfer<T>[]>[];
 
   constructor(unit: T, message?: string) {
@@ -839,7 +887,7 @@ class PawArrayParser<T extends PawType> implements PawArray<T> {
     return this;
   }
 
-  refine<U>(fn: RefineFn<U>): PawArray<T> {
+  refine<U>(fn: PawRefineFn<U>): PawArray<T> {
     this.refines.push(fn);
     return this;
   }
@@ -865,8 +913,12 @@ class PawArrayParser<T extends PawType> implements PawArray<T> {
   }
 
   private safeParseImmediate(input: unknown): PawResult<PawInfer<T>[], PawIssue> {
-    for (const fn of this.refines) {
-      input = fn(input);
+    for (const refinefn of this.refines) {
+      const result = refinefn(new PawRefineContext(input, this.kind));
+      if (!result.ok) {
+        return result;
+      }
+      input = result.value;
     }
 
     const arr = this.parseArray(input);
@@ -894,8 +946,12 @@ class PawArrayParser<T extends PawType> implements PawArray<T> {
   }
 
   private safeParseRetained(input: unknown): PawResult<PawInfer<T>[], PawIssue> {
-    for (const fn of this.refines) {
-      input = fn(input);
+    for (const refinefn of this.refines) {
+      const result = refinefn(new PawRefineContext(input, this.kind));
+      if (!result.ok) {
+        return result;
+      }
+      input = result.value;
     }
 
     const arr = this.parseArray(input);
@@ -973,7 +1029,7 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
   private readonly message: string | undefined;
   private isImmediate: boolean;
   private reqmessage: string | undefined;
-  private refines: RefineFn[];
+  private refines: PawRefineFn[];
   private checks: PawCheckFn<PawParsedObject<T>>[];
   private isStrict: boolean;
   private isPathed: boolean;
@@ -1027,7 +1083,7 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
     return this;
   }
 
-  refine<U>(fn: RefineFn<U>): PawObject<T> {
+  refine<U>(fn: PawRefineFn<U>): PawObject<T> {
     this.refines.push(fn);
     return this;
   }
@@ -1151,11 +1207,15 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
     return new PawOk(output);
   }
 
-  private refined(val: unknown): unknown {
-    for (const fn of this.refines) {
-      val = fn(val);
+  private refined(input: unknown): unknown {
+    for (const refinefn of this.refines) {
+      const result = refinefn(new PawRefineContext(input, this.kind));
+      if (!result.ok) {
+        return result;
+      }
+      input = result.value;
     }
-    return val;
+    return input;
   }
 
   private parseObject(val: unknown): PawResult<Record<string, unknown>, PawIssue> {
@@ -1210,7 +1270,7 @@ class PawLiteralParser<const T extends string | number | boolean> implements Paw
   private readonly values: T[];
   private readonly message: string | undefined;
   private reqmessage: string | undefined;
-  private refines: RefineFn[];
+  private refines: PawRefineFn[];
   private checks: PawCheckFn<T>[];
 
   constructor(values: T[], message?: string) {
@@ -1239,7 +1299,7 @@ class PawLiteralParser<const T extends string | number | boolean> implements Paw
     return this;
   }
 
-  refine<U>(fn: RefineFn<U>): PawLiteral<T> {
+  refine<U>(fn: PawRefineFn<U>): PawLiteral<T> {
     this.refines.push(fn);
     return this;
   }
@@ -1257,8 +1317,12 @@ class PawLiteralParser<const T extends string | number | boolean> implements Paw
   }
 
   safeParse(input: unknown): PawResult<T, PawIssue> {
-    for (const fn of this.refines) {
-      input = fn(input);
+    for (const refinefn of this.refines) {
+      const result = refinefn(new PawRefineContext(input, this.kind));
+      if (!result.ok) {
+        return result;
+      }
+      input = result.value;
     }
 
     if (input === null || input === undefined) {
@@ -1292,7 +1356,7 @@ class PawUnionParser<T extends Array<PawSchema<any, any>>> implements PawUnion<T
   private readonly schemas: T;
   private readonly message: string | undefined;
   private reqmessage: string | undefined;
-  private refines: RefineFn[];
+  private refines: PawRefineFn[];
   private checks: PawCheckFn<PawInfer<T[number]>>[];
 
   constructor(schemas: T, message?: string) {
@@ -1321,7 +1385,7 @@ class PawUnionParser<T extends Array<PawSchema<any, any>>> implements PawUnion<T
     return this;
   }
 
-  refine<U>(fn: RefineFn<U>): PawUnion<T> {
+  refine<U>(fn: PawRefineFn<U>): PawUnion<T> {
     this.refines.push(fn);
     return this;
   }
@@ -1339,8 +1403,12 @@ class PawUnionParser<T extends Array<PawSchema<any, any>>> implements PawUnion<T
   }
 
   safeParse(input: unknown): PawResult<PawInfer<T[number]>, PawIssue> {
-    for (const fn of this.refines) {
-      input = fn(input);
+    for (const refinefn of this.refines) {
+      const result = refinefn(new PawRefineContext(input, this.kind));
+      if (!result.ok) {
+        return result;
+      }
+      input = result.value;
     }
 
     for (const schema of this.schemas) {

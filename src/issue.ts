@@ -12,7 +12,8 @@ export type PawIssue =
   | PawObjectSchemaIssue
   | PawLiteralIssue
   | PawUnionIssue
-  | PawCheckIssue;
+  | PawCheckIssue
+  | PawRefineIssue;
 
 export class PawParseError extends Error {
   public readonly issue: PawIssue;
@@ -140,9 +141,19 @@ export class PawUnionIssue extends PawIssueBase {
 }
 
 const CHECK = "check" as const;
-// TODO: add `src` field which describes the schema that the check was attached to
 export class PawCheckIssue extends PawIssueBase {
   public readonly kind = CHECK;
+  public readonly src: PawType["kind"];
+
+  constructor(message: string, src: PawType["kind"], path?: PawIssuePath) {
+    super(message, path);
+    this.src = src;
+  }
+}
+
+const REFINE = "refine" as const;
+export class PawRefineIssue extends PawIssueBase {
+  public readonly kind = REFINE;
   public readonly src: PawType["kind"];
 
   constructor(message: string, src: PawType["kind"], path?: PawIssuePath) {

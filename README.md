@@ -4,7 +4,7 @@ An incomplete implementation of JSON schema parsing inspired by `zod` made to in
 
 Paw supports many utility methods to help parsing the values, such as `refine`, `transform` and `check`. The order of execution is: `refine` -> `parsing` -> `check` -> `transform`.
 
-- `refine` is meant to transform some value before validating the schema. It does not support issues.
+- `refine` is meant to transform some value before validating the schema. If the `refine` function returns an issue, then the schema stops parsing and forwards the issue as result.
 - `parsing` is done either through `parse` or `safeParse` and validates the value based on the schema.
 - `check` is just a simple validation meant to be used when validating the schema is not enough. Supports returning issues with custom messages.
 - `transform` transform the value after validating the schema and all `check`s. Primarily used for type driven design.

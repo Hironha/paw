@@ -1,7 +1,7 @@
 import { describe, test, expect } from "vitest";
 import * as paw from "./paw";
 import { PawOk, PawError } from "./result";
-import { PawCheckIssue, PawObjectSchemaIssue, PawRequiredIssue } from "./issue";
+import { PawCheckIssue, PawObjectSchemaIssue, PawRefineIssue, PawRequiredIssue } from "./issue";
 
 describe("paw", () => {
   describe("string", () => {
@@ -27,7 +27,11 @@ describe("paw", () => {
     });
 
     test("string refine works", () => {
-      const str = paw.string().refine((val) => (typeof val === "number" ? val.toString() : val));
+      const str = paw
+        .string()
+        .refine((ctx) =>
+          typeof ctx.input === "number" ? ctx.ok(ctx.input.toString()) : ctx.ok(ctx.input),
+        );
 
       expect(str.parse("test")).toStrictEqual("test");
       expect(str.parse(2), "refined to string").toStrictEqual("2");
@@ -124,12 +128,12 @@ describe("paw", () => {
     });
 
     test("number refine works", () => {
-      const num = paw.number().refine((val) => {
-        if (val == null) {
-          return val;
+      const num = paw.number().refine((ctx) => {
+        if (ctx.input == null) {
+          return ctx.ok(ctx.input);
         }
-        const num = Number(val);
-        return Number.isNaN(num) ? val : num;
+        const num = Number(ctx.input);
+        return ctx.ok(Number.isNaN(num) ? ctx.input : num);
       });
 
       expect(num.parse("12")).toStrictEqual(12);
@@ -192,7 +196,7 @@ describe("paw", () => {
     });
 
     test("boolean refine works", () => {
-      const bool = paw.boolean().refine((val) => !!val);
+      const bool = paw.boolean().refine((ctx) => ctx.ok(!!ctx.input));
 
       expect(bool.parse(true)).toStrictEqual(true);
       expect(bool.parse(false)).toStrictEqual(false);
@@ -251,7 +255,9 @@ describe("paw", () => {
   test("optional refine works", () => {
     const optstr = paw
       .string()
-      .refine((val) => (typeof val === "number" ? val.toString() : val))
+      .refine((ctx) =>
+        typeof ctx.input === "number" ? ctx.ok(ctx.input.toString()) : ctx.ok(ctx.input),
+      )
       .optional();
 
     expect(optstr.parse("test")).toStrictEqual("test");
@@ -407,7 +413,9 @@ describe("paw", () => {
   });
 
   test("array refine works", () => {
-    const strarr = paw.array(paw.string()).refine((val) => (typeof val === "string" ? [val] : val));
+    const strarr = paw
+      .array(paw.string())
+      .refine((ctx) => (typeof ctx.input === "string" ? ctx.ok([ctx.input]) : ctx.ok(ctx.input)));
 
     expect(strarr.parse("test")).toMatchObject(["test"]);
     expect(!strarr.safeParse(2).ok, "value is not an array").toBeTruthy();
@@ -769,74 +777,76 @@ describe("paw", () => {
     });
   });
 
-  test("union with primitive types works", () => {
-    const union = paw.union([paw.string(), paw.number()]);
-    const result = union.safeParse("test");
-    expect(result.ok).toBeTruthy();
-    expect(PawOk.unwrap(result) === "test").toBeTruthy();
-  });
-
-  test("union with complex objects works", () => {
-    const dog = paw.object({
-      name: paw.string(),
-      sound: paw.literal(["woof"]),
+  describe("union", () => {
+    test("union with primitive types works", () => {
+      const union = paw.union([paw.string(), paw.number()]);
+      const result = union.safeParse("test");
+      expect(result.ok).toBeTruthy();
+      expect(PawOk.unwrap(result) === "test").toBeTruthy();
     });
-    const cat = paw.object({
-      name: paw.string(),
-      sound: paw.literal(["meow"]),
+
+    test("union with complex objects works", () => {
+      const dog = paw.object({
+        name: paw.string(),
+        sound: paw.literal(["woof"]),
+      });
+      const cat = paw.object({
+        name: paw.string(),
+        sound: paw.literal(["meow"]),
+      });
+      const union = paw.union([dog, cat]);
+
+      const result = union.safeParse({
+        name: "nina",
+        sound: "meow",
+      });
+      expect(result.ok).toBeTruthy();
+
+      const nina = PawOk.unwrap(result);
+      expect(nina.name).toStrictEqual("nina");
+      expect(nina.sound).toStrictEqual("meow");
     });
-    const union = paw.union([dog, cat]);
 
-    const result = union.safeParse({
-      name: "nina",
-      sound: "meow",
+    test("union with refine works", () => {
+      const schema = paw
+        .union([paw.boolean(), paw.literal(["true", "false"])])
+        .refine((ctx) => (typeof ctx.input === "number" ? ctx.ok(ctx.input > 0) : ctx.ok(false)));
+
+      const result = schema.safeParse(1);
+      expect(result.ok).toBeTruthy();
+      expect(PawOk.unwrap(result)).toStrictEqual(true);
     });
-    expect(result.ok).toBeTruthy();
 
-    const nina = PawOk.unwrap(result);
-    expect(nina.name).toStrictEqual("nina");
-    expect(nina.sound).toStrictEqual("meow");
-  });
+    test("union check works", () => {
+      const checkmsg = "if string then should be nina";
+      const union = paw.union([paw.string().optional(), paw.number()]).check((ctx) => {
+        return typeof ctx.output === "string" && ctx.output === "nina"
+          ? ctx.ok()
+          : ctx.error(checkmsg);
+      });
+      let result = union.safeParse("nina");
+      expect(result.ok, "nina should satisfy union and check constraint").toBeTruthy();
 
-  test("union with refine works", () => {
-    const schema = paw
-      .union([paw.boolean(), paw.literal(["true", "false"])])
-      .refine((value) => (typeof value === "number" ? value > 0 : false));
-
-    const result = schema.safeParse(1);
-    expect(result.ok).toBeTruthy();
-    expect(PawOk.unwrap(result)).toStrictEqual(true);
-  });
-
-  test("union check works", () => {
-    const checkmsg = "if string then should be nina";
-    const union = paw.union([paw.string().optional(), paw.number()]).check((ctx) => {
-      return typeof ctx.output === "string" && ctx.output === "nina"
-        ? ctx.ok()
-        : ctx.error(checkmsg);
+      result = union.safeParse("test");
+      expect(!result.ok, "test should fail check constraint").toBeTruthy();
+      const error = PawError.unwrap(result);
+      expect(error).toStrictEqual(new PawCheckIssue(checkmsg, "union"));
     });
-    let result = union.safeParse("nina");
-    expect(result.ok, "nina should satisfy union and check constraint").toBeTruthy();
 
-    result = union.safeParse("test");
-    expect(!result.ok, "test should fail check constraint").toBeTruthy();
-    const error = PawError.unwrap(result);
-    expect(error).toStrictEqual(new PawCheckIssue(checkmsg, "union"));
-  });
+    test("union transform works", () => {
+      const schema = paw
+        .union([paw.boolean(), paw.number()], "invalid value")
+        .transform((u) => u.toString());
+      let result = schema.safeParse(true);
+      expect(result.ok).toBeTruthy();
+      expect(PawOk.unwrap(result)).toStrictEqual("true");
 
-  test("union transform works", () => {
-    const schema = paw
-      .union([paw.boolean(), paw.number()], "invalid value")
-      .transform((u) => u.toString());
-    let result = schema.safeParse(true);
-    expect(result.ok).toBeTruthy();
-    expect(PawOk.unwrap(result)).toStrictEqual("true");
-
-    result = schema.safeParse({});
-    expect(!result.ok).toBeTruthy();
-    expect(PawError.unwrap(result)).toMatchObject({
-      kind: "union",
-      message: "invalid value",
+      result = schema.safeParse({});
+      expect(!result.ok).toBeTruthy();
+      expect(PawError.unwrap(result)).toMatchObject({
+        kind: "union",
+        message: "invalid value",
+      });
     });
   });
 
@@ -856,5 +866,20 @@ describe("paw", () => {
       kind: "number",
       message: "invalid number",
     });
+  });
+
+  test("refine issue works", () => {
+    const refinemsg = "Could not convert string into number";
+    const Schema = paw.number().refine((ctx) => {
+      if (typeof ctx.input === "number" && !Number.isNaN(ctx.input)) return ctx.ok(ctx.input);
+      const n = Number(ctx.input);
+      return Number.isNaN(n) ? ctx.error(refinemsg) : ctx.ok(n);
+    });
+
+    expect(Schema.parse(2)).toStrictEqual(2);
+    expect(Schema.parse("2")).toStrictEqual(2);
+    expect(Schema.safeParse("nan")).toStrictEqual(
+      new PawError(new PawRefineIssue(refinemsg, "number")),
+    );
   });
 });
