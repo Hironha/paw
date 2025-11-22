@@ -1,13 +1,130 @@
 ## Paw
 
-An incomplete implementation of JSON schema parsing inspired by `zod` made to investigate how powerful Typescript type system is and what are it's edge cases. This implementation is meant to be used as a learning resource and not as a production ready library. It's key advantages over `zod` is it's simplicity and performance for safe parsing, since all the safe parse errors are stackless. Also, `Paw` supports immediate parsing, which does not check all the object/array schema and returns an error after encountering the first one.
+An incomplete implementation of JSON schema parsing inspired by `zod` made to investigate how powerful Typescript type system is and what are it's edge cases. This implementation is meant to be used as a learning resource and not as a production ready library. It's key advantages over `zod` is it's simplicity and performance for safe parsing, since all the safe parse errors are stackless and strict parsing uses the own target as result, meaning no unnecessary copies/clones are made. Also, `Paw` supports immediate parsing, which does not check all the object/array schema and returns an issue after encountering the first one.
+
+```ts
+import * as paw "paw";
+
+const PersonSchema = paw.object({
+  name: paw.string().min(1).max(256),
+  age: paw.number().int().min(0),
+});
+
+const result = PersonSchema.safeParse({
+  name: "John Doe",
+  age: 18
+});
+
+expect(result.ok).toBeTruthy();
+if (result.ok) {
+  expect(result.value).toStrictEqual({
+    name: "John Doe",
+    age: 18
+  });
+}
+```
+
+### Validation
 
 Paw supports many utility methods to help parsing the values, such as `refine`, `transform` and `check`. The order of execution is: `refine` -> `parsing` -> `check` -> `transform`.
 
-- `refine` is meant to transform some value before validating the schema. If the `refine` function returns an issue, then the schema stops parsing and forwards the issue as result.
+- `refine` is meant to transform some value before parsing the schema. If the `refine` function returns an issue, then the schema stops parsing and forwards the issue as result.
 - `parsing` is done either through `parse` or `safeParse` and validates the value based on the schema.
 - `check` is just a simple validation meant to be used when validating the schema is not enough. Supports returning issues with custom messages.
 - `transform` transform the value after validating the schema and all `check`s. Primarily used for type driven design.
+
+#### 1. Refine
+
+`refine` is used to transform some value before parsing the schema. If the `refine` function returns an issue, then the schema stops parsing and fowards the issue as the parsing result. A schema can have multiple `refine`, but their validation have immediate behaviour, meaning that it stops at the first `refine` that returns an issue.
+
+```ts
+import * as paw from "paw";
+
+const AgeFromStringSchema = paw
+  .number()
+  .int()
+  .min(0)
+  .refine((ctx) => {
+    const n = Number(ctx.input);
+    return Number.isNaN(n) ? ctx.error("Value not parsable to number") : ctx.ok(n);
+  });
+
+expect(AgeFromStringSchema.safeParse(1).ok).toBeTruthy();
+expect(AgeFromStringSchema.safeParse("1").ok).toBeTruthy();
+```
+
+#### 2. Parsing
+
+Parsing refers to the process of schema validation. All built-in schemas have two parsing methods: `parse` and `safeParse`
+
+- The `parse` method throws a `PawParseError`, a stackful error class that extends the `Error` class and contains a reference to the issue.
+- The `safeParse` method uses a discriminated union as the parsing result to indicate whether the parsing was successful or not.
+
+```ts
+import * as paw from "paw";
+
+const Schema = paw.object({ name: paw.string() });
+
+const parsed = Schema.parse({ name: "John Doe" });
+expect(parsed).toStrictEqual({ name: "John Doe" });
+
+const result = Schema.safeParse({ name: "John Doe" });
+expect(result.ok).toBeTruthy();
+if (result.ok) {
+  expect(result.value).toStrictEqual({ name: "John Doe" });
+}
+```
+
+#### 3. Checks
+
+Checks are a way to validate parsed data when parsing alone isn't sufficient. For example, when validating an email address, you know it's a string, but validating the format is quite complicated. Therefore, you might decide that only checking for an "@" within the string is enough for your needs.
+
+```ts
+import * as paw from "paw";
+
+const EmailSchema = paw
+  .string()
+  .check((ctx) => (ctx.output.includes("@") ? ctx.ok() : ctx.error("Invalid email address")));
+
+let result = EmailSchema.safeParse("johndoe@gmail.com");
+expect(result.ok).toBeTruthy();
+if (result.ok) {
+  expect(result.value).toStrictEqual("johndoe@gmail.com");
+}
+
+result = EmailSchema.safeParse("johndoe");
+expect(result.ok).toBeFalsy();
+if (!result.ok) {
+  expect(result.error).toMatchObject({
+    kind: "check",
+    message: "Invalid email address",
+  });
+}
+```
+
+#### 4. Transforms
+
+A transformation is used to transform the output of a schema parsing into another value. This is useful to transform from a primitive into a class instance for example.
+
+```ts
+import * as paw from "paw";
+
+class Name {
+  constructor(public readonly value: string) {}
+}
+
+const NameSchema = paw
+  .string()
+  .min(1)
+  .transform((name) => new Name(name));
+
+const result = NameSchema.safeParse("John Doe");
+expect(result.ok).toBeTruthy();
+if (resut.ok) {
+  expect(result.value).beInstanceOf(NameSchema);
+  expect(result.value.value).toStrictEqual("John Doe");
+}
+```
 
 ### Standard Schema
 

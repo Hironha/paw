@@ -719,6 +719,15 @@ describe("paw", () => {
     expect(PawOk.unwrap(strictResult)).toStrictEqual({ name: "string" });
   });
 
+  test("non strict parsing keeps reference to original object", () => {
+    const src = { name: "Nina", age: 7 };
+    const PetSchema = paw.object({ name: paw.string(), age: paw.number().int().min(0) });
+    const result = PetSchema.safeParse(src);
+    expect(result.ok).toBeTruthy();
+    expect(PawOk.unwrap(result)).toStrictEqual(src);
+    expect(PawOk.unwrap(result) === src).toBeTruthy();
+  });
+
   test("literal parser works", () => {
     const animals = paw.literal(["cat", "dog"]);
     expect(animals.parse("cat")).toStrictEqual("cat");
