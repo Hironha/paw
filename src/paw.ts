@@ -1029,7 +1029,7 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
   private readonly message: string | undefined;
   private isImmediate: boolean;
   private reqmessage: string | undefined;
-  private refines: PawRefineFn[];
+  private refinements: PawRefineFn[];
   private checks: PawCheckFn<PawParsedObject<T>>[];
   private isStrict: boolean;
   private isPathed: boolean;
@@ -1038,7 +1038,7 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
     this.fields = fields;
     this.message = message;
     this.isImmediate = false;
-    this.refines = [];
+    this.refinements = [];
     this.checks = [];
     this.isStrict = false;
     this.isPathed = false;
@@ -1055,7 +1055,7 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
     clone.reqmessage = this.reqmessage;
     clone.isStrict = this.isStrict;
     clone.isPathed = this.isPathed;
-    this.refines.forEach((fn) => clone.refine(fn));
+    this.refinements.forEach((fn) => clone.refine(fn));
     this.checks.forEach((ck) => clone.check(ck));
     return clone;
   }
@@ -1084,7 +1084,7 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
   }
 
   refine<U>(fn: PawRefineFn<U>): PawObject<T> {
-    this.refines.push(fn);
+    this.refinements.push(fn);
     return this;
   }
 
@@ -1121,7 +1121,12 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
   }
 
   private safeParseImmediate(input: unknown): PawResult<PawParsedObject<T>, PawIssue> {
-    input = this.refined(input);
+    const refined = this.tryRefine(input);
+    if (!refined.ok) {
+      return refined;
+    }
+
+    input = refined.value;
     const obj = this.parseObject(input);
     if (!obj.ok) {
       return obj;
@@ -1163,7 +1168,12 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
   }
 
   private safeParseRetained(input: unknown): PawResult<PawParsedObject<T>, PawIssue> {
-    input = this.refined(input);
+    const refined = this.tryRefine(input);
+    if (!refined.ok) {
+      return refined;
+    }
+
+    input = refined.value;
     const obj = this.parseObject(input);
     if (!obj.ok) {
       return obj;
@@ -1207,15 +1217,15 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
     return new PawOk(output);
   }
 
-  private refined(input: unknown): unknown {
-    for (const refinefn of this.refines) {
+  private tryRefine(input: unknown): PawResult<unknown, PawIssue> {
+    for (const refinefn of this.refinements) {
       const result = refinefn(new PawRefineContext(input, this.kind));
       if (!result.ok) {
         return result;
       }
       input = result.value;
     }
-    return input;
+    return new PawOk(input);
   }
 
   private parseObject(val: unknown): PawResult<Record<string, unknown>, PawIssue> {
