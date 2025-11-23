@@ -1,6 +1,8 @@
 ## Paw
 
-An incomplete implementation of JSON schema parsing inspired by `zod` made to investigate how powerful Typescript type system is and what are it's edge cases. This implementation is meant to be used as a learning resource and not as a production ready library. It's key advantages over `zod` is it's simplicity and performance for safe parsing, since all the safe parse errors are stackless and strict parsing uses the own target as result, meaning no unnecessary copies/clones are made. Also, `Paw` supports immediate parsing, which does not check all the object/array schema and returns an issue after encountering the first one.
+A simple implementation of JSON schema parsing inspired by `zod`. This implementation is meant to be minimal, so only primitive types and some sum types are supported. For more specific validations, such as email or uuid, for example, Paw offers an extension to it's parsing schema through `refine`, `check` and `transform` methods.
+
+The key advantage of Paw over zod is the customization of how nestable schemas, i.e. objects and arrays, are parsed. Nestable schemas have two parsing modes: `immediate` and `retained`. Immediate mode stops parsing the schema when it encounters the first issue, and retained mode parses the whole object and return all issues encountered. Parsing can also be strict or non-strict; the difference is that strict mode guarantees that the output contains only data defined in the schema, meanwhile the advantage of non-strict parsing is avoiding unnecessary copies or clones when possible (making it faster).
 
 ```ts
 import * as paw "paw";
@@ -116,7 +118,7 @@ class Name {
 const NameSchema = paw
   .string()
   .min(1)
-  .transform((name) => new Name(name));
+  .transform((ctx) => ctx.ok(new Name(ctx.output)));
 
 const result = NameSchema.safeParse("John Doe");
 expect(result.ok).toBeTruthy();

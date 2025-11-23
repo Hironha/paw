@@ -1,7 +1,13 @@
 import { describe, test, expect } from "vitest";
 import * as paw from "./paw";
 import { PawOk, PawError } from "./result";
-import { PawCheckIssue, PawObjectSchemaIssue, PawRefineIssue, PawRequiredIssue } from "./issue";
+import {
+  PawCheckIssue,
+  PawObjectSchemaIssue,
+  PawRefineIssue,
+  PawRequiredIssue,
+  PawTransformIssue,
+} from "./issue";
 
 describe("paw", () => {
   describe("string", () => {
@@ -52,8 +58,8 @@ describe("paw", () => {
     });
 
     test("string transform works", () => {
-      const str = paw.string().transform((s) => Number(s));
-      const result = str.safeParse("2");
+      const Schema = paw.string().transform((ctx) => ctx.ok(Number(ctx.output)));
+      const result = Schema.safeParse("2");
       expect(result.ok).toBeTruthy();
       const value = PawOk.unwrap(result);
       expect(value).toStrictEqual(2);
@@ -164,8 +170,8 @@ describe("paw", () => {
     });
 
     test("number transform works", () => {
-      const num = paw.number().transform((n) => n.toString());
-      const result = num.safeParse(2);
+      const Schema = paw.number().transform((ctx) => ctx.ok(ctx.output.toString()));
+      const result = Schema.safeParse(2);
       expect(result.ok).toBeTruthy();
       const value = PawOk.unwrap(result);
       expect(value).toStrictEqual("2");
@@ -216,8 +222,8 @@ describe("paw", () => {
     });
 
     test("boolean transform works", () => {
-      const bool = paw.boolean().transform((b) => b.toString());
-      const result = bool.safeParse(true);
+      const Schema = paw.boolean().transform((ctx) => ctx.ok(ctx.output.toString()));
+      const result = Schema.safeParse(true);
       expect(result.ok).toBeTruthy();
       const value = PawOk.unwrap(result);
       expect(value).toStrictEqual("true");
@@ -424,8 +430,8 @@ describe("paw", () => {
   });
 
   test("array transform works", () => {
-    const arr = paw.array(paw.string()).transform((arr) => arr[0]);
-    const result = arr.safeParse(["test"]);
+    const Schema = paw.array(paw.string()).transform((ctx) => ctx.ok(ctx.output[0]));
+    const result = Schema.safeParse(["test"]);
     expect(result.ok).toBeTruthy();
     const value = PawOk.unwrap(result);
     expect(value).toStrictEqual("test");
@@ -700,8 +706,8 @@ describe("paw", () => {
   });
 
   test("object transform works", () => {
-    const obj = paw.object({ name: paw.string() }).transform((obj) => obj.name);
-    const result = obj.safeParse({ name: "test" });
+    const Schema = paw.object({ name: paw.string() }).transform((ctx) => ctx.ok(ctx.output.name));
+    const result = Schema.safeParse({ name: "test" });
     expect(result.ok).toBeTruthy();
     const value = PawOk.unwrap(result);
     expect(value).toStrictEqual("test");
@@ -766,12 +772,12 @@ describe("paw", () => {
   });
 
   test("literal transform works", () => {
-    const schema = paw.literal(["cat", "dog"], "not a domestic animal").transform((animal) => {
-      switch (animal) {
+    const schema = paw.literal(["cat", "dog"], "not a domestic animal").transform((ctx) => {
+      switch (ctx.output) {
         case "cat":
-          return 1;
+          return ctx.ok(1);
         case "dog":
-          return 2;
+          return ctx.ok(2);
       }
     });
     let result = schema.safeParse("cat");
@@ -843,14 +849,14 @@ describe("paw", () => {
     });
 
     test("union transform works", () => {
-      const schema = paw
+      const Schema = paw
         .union([paw.boolean(), paw.number()], "invalid value")
-        .transform((u) => u.toString());
-      let result = schema.safeParse(true);
+        .transform((ctx) => ctx.ok(ctx.output.toString()));
+      let result = Schema.safeParse(true);
       expect(result.ok).toBeTruthy();
       expect(PawOk.unwrap(result)).toStrictEqual("true");
 
-      result = schema.safeParse({});
+      result = Schema.safeParse({});
       expect(!result.ok).toBeTruthy();
       expect(PawError.unwrap(result)).toMatchObject({
         kind: "union",
@@ -860,21 +866,82 @@ describe("paw", () => {
   });
 
   test("chain of transforms works", () => {
-    const schema = paw
+    const Schema = paw
       .number("invalid number")
-      .transform(String)
-      .transform(Number)
-      .transform(Boolean);
-    let result = schema.safeParse(2);
+      .transform((ctx) => ctx.ok(ctx.output.toString()))
+      .transform((ctx) => ctx.ok(Number(ctx.output)))
+      .transform((ctx) => ctx.ok(Boolean(ctx.output)));
+    let result = Schema.safeParse(2);
     expect(result.ok).toBeTruthy();
     expect(PawOk.unwrap(result)).toStrictEqual(true);
 
-    result = schema.safeParse({});
+    result = Schema.safeParse({});
     expect(!result.ok).toBeTruthy();
     expect(PawError.unwrap(result)).toMatchObject({
       kind: "number",
       message: "invalid number",
     });
+  });
+
+  test("transform is able to return an issue", () => {
+    const errmsg = "Expected string to be parsable to number";
+    const Schema = paw.string().transform((ctx) => {
+      const n = Number(ctx.output);
+      if (Number.isNaN(n)) {
+        return ctx.error(errmsg);
+      }
+      return ctx.ok(n);
+    });
+
+    let result = Schema.safeParse("2");
+    expect(result.ok).toBeTruthy();
+    expect(PawOk.unwrap(result)).toStrictEqual(2);
+
+    result = Schema.safeParse("abc");
+    expect(result.ok).toBeFalsy();
+    expect(PawError.unwrap(result)).toStrictEqual(new PawTransformIssue(errmsg, "string"));
+  });
+
+  test("transform chain stops at the first issue", () => {
+    const strErrorMessage = "Expected string to be parsable to number";
+    const boolErrorMessage = "Expected either 0 or 1";
+    const Schema = paw
+      .string()
+      .transform((ctx) => {
+        const n = Number(ctx.output);
+        if (Number.isNaN(n)) {
+          return ctx.error(strErrorMessage);
+        }
+        return ctx.ok(n);
+      })
+      .transform((ctx) => {
+        switch (ctx.output) {
+          case 0:
+            return ctx.ok(false);
+          case 1:
+            return ctx.ok(true);
+          default:
+            return ctx.error(boolErrorMessage);
+        }
+      });
+
+    let result = Schema.safeParse("1");
+    expect(result.ok).toBeTruthy();
+    expect(PawOk.unwrap(result)).toStrictEqual(true);
+
+    result = Schema.safeParse("0");
+    expect(result.ok).toBeTruthy();
+    expect(PawOk.unwrap(result)).toStrictEqual(false);
+
+    result = Schema.safeParse("abc");
+    expect(result.ok).toBeFalsy();
+    expect(PawError.unwrap(result)).toStrictEqual(new PawTransformIssue(strErrorMessage, "string"));
+
+    result = Schema.safeParse("2");
+    expect(result.ok).toBeFalsy();
+    expect(PawError.unwrap(result)).toStrictEqual(
+      new PawTransformIssue(boolErrorMessage, "string"),
+    );
   });
 
   test("refine issue works", () => {
@@ -889,6 +956,30 @@ describe("paw", () => {
     expect(Schema.parse("2")).toStrictEqual(2);
     expect(Schema.safeParse("nan")).toStrictEqual(
       new PawError(new PawRefineIssue(refinemsg, "number")),
+    );
+  });
+
+  test("check chain stops at first check", () => {
+    const emailErrorMessage = "String should be a valid email";
+    const testEmailErrorMessage = "Email cannot be a test email";
+    const testEmail = "test@test.com";
+    const Schema = paw
+      .string()
+      .check((ctx) => (ctx.output.includes("@") ? ctx.ok() : ctx.error(emailErrorMessage)))
+      .check((ctx) => (ctx.output === testEmail ? ctx.error(testEmailErrorMessage) : ctx.ok()));
+
+    let result = Schema.safeParse("johndoe@gmail.com");
+    expect(result.ok).toBeTruthy();
+    expect(PawOk.unwrap(result)).toStrictEqual("johndoe@gmail.com");
+
+    result = Schema.safeParse("johndoe");
+    expect(result.ok).toBeFalsy();
+    expect(PawError.unwrap(result)).toStrictEqual(new PawCheckIssue(emailErrorMessage, "string"));
+
+    result = Schema.safeParse(testEmail);
+    expect(result.ok).toBeFalsy();
+    expect(PawError.unwrap(result)).toStrictEqual(
+      new PawCheckIssue(testEmailErrorMessage, "string"),
     );
   });
 });

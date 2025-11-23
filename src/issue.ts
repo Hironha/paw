@@ -13,7 +13,8 @@ export type PawIssue =
   | PawLiteralIssue
   | PawUnionIssue
   | PawCheckIssue
-  | PawRefineIssue;
+  | PawRefineIssue
+  | PawTransformIssue;
 
 export class PawParseError extends Error {
   public readonly issue: PawIssue;
@@ -154,6 +155,17 @@ export class PawCheckIssue extends PawIssueBase {
 const REFINE = "refine" as const;
 export class PawRefineIssue extends PawIssueBase {
   public readonly kind = REFINE;
+  public readonly src: PawType["kind"];
+
+  constructor(message: string, src: PawType["kind"], path?: PawIssuePath) {
+    super(message, path);
+    this.src = src;
+  }
+}
+
+const TRANSFORM = "transform" as const;
+export class PawTransformIssue extends PawIssueBase {
+  public readonly kind = TRANSFORM;
   public readonly src: PawType["kind"];
 
   constructor(message: string, src: PawType["kind"], path?: PawIssuePath) {
