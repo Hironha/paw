@@ -868,7 +868,7 @@ class PawArrayParser<T extends PawType> implements PawArray<T> {
   private reqmessage: string | undefined;
   private maxcfg: { value: number; message?: string } | undefined;
   private mincfg: { value: number; message?: string } | undefined;
-  private refines: PawRefineFn[];
+  private refinements: PawRefineFn[];
   private checks: PawCheckFn<PawInfer<T>[]>[];
 
   constructor(unit: T, message?: string) {
@@ -876,7 +876,7 @@ class PawArrayParser<T extends PawType> implements PawArray<T> {
     this.message = message;
     this.isImmediate = false;
     this.checks = [];
-    this.refines = [];
+    this.refinements = [];
     this["~standard"] = new PawStandardSchemaProps(this);
   }
 
@@ -914,7 +914,7 @@ class PawArrayParser<T extends PawType> implements PawArray<T> {
   }
 
   refine<U>(fn: PawRefineFn<U>): PawArray<T> {
-    this.refines.push(fn);
+    this.refinements.push(fn);
     return this;
   }
 
@@ -939,14 +939,12 @@ class PawArrayParser<T extends PawType> implements PawArray<T> {
   }
 
   private safeParseImmediate(input: unknown): PawResult<PawInfer<T>[], PawIssue> {
-    for (const refinefn of this.refines) {
-      const result = refinefn(new PawRefineContext(input, this.kind));
-      if (!result.ok) {
-        return result;
-      }
-      input = result.value;
+    const refined = this.runRefinements(input);
+    if (!refined.ok) {
+      return refined;
     }
 
+    input = refined.value;
     const arr = this.parseArray(input);
     if (!arr.ok) {
       return arr;
@@ -972,14 +970,12 @@ class PawArrayParser<T extends PawType> implements PawArray<T> {
   }
 
   private safeParseRetained(input: unknown): PawResult<PawInfer<T>[], PawIssue> {
-    for (const refinefn of this.refines) {
-      const result = refinefn(new PawRefineContext(input, this.kind));
-      if (!result.ok) {
-        return result;
-      }
-      input = result.value;
+    const refined = this.runRefinements(input);
+    if (!refined.ok) {
+      return refined;
     }
 
+    input = refined.value;
     const arr = this.parseArray(input);
     if (!arr.ok) {
       return arr;
@@ -1043,6 +1039,17 @@ class PawArrayParser<T extends PawType> implements PawArray<T> {
       }
     }
     return new PawOk(undefined);
+  }
+
+  private runRefinements(input: unknown): PawResult<unknown, PawIssue> {
+    for (const fn of this.refinements) {
+      const result = fn(new PawRefineContext(input, this.kind));
+      if (!result.ok) {
+        return result;
+      }
+      input = result.value;
+    }
+    return new PawOk(input);
   }
 }
 
@@ -1147,7 +1154,7 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
   }
 
   private safeParseImmediate(input: unknown): PawResult<PawParsedObject<T>, PawIssue> {
-    const refined = this.tryRefine(input);
+    const refined = this.runRefinements(input);
     if (!refined.ok) {
       return refined;
     }
@@ -1165,7 +1172,7 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
         const v = obj.value[k];
         const result = this.fields[k]!.safeParse(v);
         if (!result.ok) {
-          const message = this.message ?? `Field '${k}' failed object schema validation`;
+          const message = this.getFieldIssueMessage(k);
           const issue: PawObjectFieldIssue = { field: k, issue: result.error };
           return new PawError(new PawObjectSchemaIssue(message, [issue], [k]));
         }
@@ -1177,7 +1184,7 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
         const v = obj.value[k];
         const result = this.fields[k]!.safeParse(v);
         if (!result.ok) {
-          const message = this.message ?? `Field '${k}' failed object schema validation`;
+          const message = this.getFieldIssueMessage(k);
           const issue: PawObjectFieldIssue = { field: k, issue: result.error };
           return new PawError(new PawObjectSchemaIssue(message, [issue]));
         }
@@ -1194,7 +1201,7 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
   }
 
   private safeParseRetained(input: unknown): PawResult<PawParsedObject<T>, PawIssue> {
-    const refined = this.tryRefine(input);
+    const refined = this.runRefinements(input);
     if (!refined.ok) {
       return refined;
     }
@@ -1243,7 +1250,7 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
     return new PawOk(output);
   }
 
-  private tryRefine(input: unknown): PawResult<unknown, PawIssue> {
+  private runRefinements(input: unknown): PawResult<unknown, PawIssue> {
     for (const refinefn of this.refinements) {
       const result = refinefn(new PawRefineContext(input, this.kind));
       if (!result.ok) {
@@ -1278,6 +1285,8 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
     return new PawOk(undefined);
   }
 
+  // TODO: improve how `path` is injected in `PawIssue`, since this method fews
+  // like a hack, bypassing the `readonly` constraint and using recursion
   private makeIssueWithPath(issue: PawIssue, path: PawIssuePath = []): PawIssue {
     if (issue.kind === "object-schema") {
       for (let j = 0; j < issue.issues.length; j += 1) {
@@ -1295,6 +1304,10 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
 
     Object.assign(issue, { path });
     return issue;
+  }
+
+  private getFieldIssueMessage(key: string): string {
+    return this.message ?? `Field '${key}' failed object schema validation`;
   }
 }
 
