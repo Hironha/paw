@@ -1,7 +1,7 @@
 {
   "name": "paw",
   "version": "0.0.1",
-  "description": "An incomplete implementation of JSON schema parsing inspired by `zod` made to investigate how powerful Typescript type system is and what are it's edge cases. This implementation is meant to be used as a learning resource and not as a production ready library.",
+  "description": "A simple implementation of JSON schema parsing inspired by zod",
   "main": "index.js",
   "scripts": {
     "test": "vitest run --silent=false",
