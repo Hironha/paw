@@ -201,8 +201,6 @@ export class PawTransformContext<I> {
 
 export type PawTransformFn<I, O> = (ctx: PawTransformContext<I>) => PawResult<O, PawTransformIssue>;
 
-// export type PawTransformFn<T, U> = (val: T) => U;
-
 interface PawTransformable<T> {
   /**
    * Transform the parsed value into another value. Transform function runs after parsing
@@ -392,11 +390,12 @@ const OPTIONAL = "optional" as const;
 export class PawOptionalParser<T extends PawSchema<string, any>> implements PawOptional<T> {
   public readonly kind = OPTIONAL;
   public readonly "~standard": StandardSchemaV1.Props<unknown, ReturnType<T["parse"]> | undefined>;
-  private readonly parser: T;
+
+  private readonly schema: T;
   private refinements: PawRefineFn[];
 
-  constructor(parser: T) {
-    this.parser = parser;
+  constructor(schema: T) {
+    this.schema = schema;
     this.refinements = [];
     this["~standard"] = new PawStandardSchemaProps(this);
   }
@@ -425,7 +424,7 @@ export class PawOptionalParser<T extends PawSchema<string, any>> implements PawO
       return new PawOk(input);
     }
 
-    return this.parser.safeParse(input);
+    return this.schema.safeParse(input);
   }
 }
 
