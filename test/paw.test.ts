@@ -1,13 +1,13 @@
 import { describe, test, expect } from "vitest";
-import * as paw from "./paw";
-import { PawOk, PawError } from "./result";
+import * as paw from "../src/paw";
+import { PawOk, PawError } from "../src/result";
 import {
   PawCheckIssue,
   PawObjectSchemaIssue,
   PawRefineIssue,
   PawRequiredIssue,
   PawTransformIssue,
-} from "./issue";
+} from "../src/issue";
 
 describe("paw", () => {
   describe("string", () => {
