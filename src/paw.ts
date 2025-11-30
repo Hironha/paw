@@ -20,7 +20,9 @@ import {
   PawTransformIssue,
 } from "./issue";
 import type { StandardSchemaV1 } from "./standard-schema";
-import type { MergeRecord, Pretty } from "./types";
+
+type Pretty<T> = { [K in keyof T]: T[K] } & {};
+type MergeRecord<B extends Record<any, any>, T extends Record<any, any>> = Omit<B, keyof T> & T;
 
 export type PawType =
   | PawString
