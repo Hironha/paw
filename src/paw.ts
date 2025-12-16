@@ -1878,30 +1878,119 @@ class PawUnionParser<T extends Array<PawSchema<any, any>>> implements PawUnion<T
   }
 }
 
+/**
+ * Create a new string schema parsing.
+ * @param message Use this param to define a custom error message.
+ * @example
+ * const Schema = paw.string();
+ *
+ * expect(Schema.parse("test")).toBe("test");
+ * expect(Schema.safeParse(2)).toMatchObject({
+ *   ok: false,
+ *   error: {
+ *     kind: "string",
+ *     message: "Expected a string but received number"
+ *   }
+ * });
+ */
 export function string(message?: string): PawString {
   return new PawStringParser(message);
 }
 
+/**
+ * Create a new number schema parsing.
+ * @param message Use this param to define a custom error message.
+ * @example
+ * const Schema = paw.number();
+ *
+ * expect(Schema.parse(2)).toBe(2);
+ * expect(Schema.safeParse("test")).toMatchObject({
+ *   ok: false,
+ *   error: {
+ *     kind: "string",
+ *     message: "Expected a number but received string"
+ *   }
+ * });
+ */
 export function number(message?: string): PawNumber {
   return new PawNumberParser(message);
 }
 
+/**
+ * Create a new boolean schema parsing.
+ * @param message Use this param to define a custom error message.
+ * @example
+ * const Schema = paw.boolean();
+ *
+ * expect(Schema.parse(true)).toBe(true);
+ * expect(Schema.safeParse(1)).toMatchObject({
+ *   ok: false,
+ *   error: {
+ *     kind: "boolean",
+ *     message: "Expected a boolean but received number"
+ *   }
+ * });
+ */
 export function boolean(message?: string): PawBoolean {
   return new PawBooleanParser(message);
 }
 
+/**
+ * Create a new unknown schema parsing.
+ * @example
+ * const Schema = paw.unknown();
+ *
+ * expect(Schema.parse(2)).toBe(2);
+ * expect(Schema.parse("test")).toBe("test");
+ */
 export function unknown(): PawUnknown {
   return new PawUnknownParser();
 }
 
+/**
+ * Create a new any schema parsing.
+ * @example
+ * const Schema = paw.any();
+ *
+ * expect(Schema.parse(2)).toBe(2);
+ * expect(Schema.parse("test")).toBe("test");
+ */
 export function any(): PawAny {
   return new PawAnyParser();
 }
 
+/**
+ * Create a new array schema parsing.
+ * @example
+ * const Schema = paw.array(paw.number());
+ *
+ * expect(Schema.parse([1, 2, 3])).toStrictEqual([1, 2, 3]);
+ * expect(Schema.safeParse("test")).toMatchObject({
+ *   ok: false,
+ *   error: {
+ *     kind: "array-type",
+ *     message: "Expected an array but received string"
+ *   }
+ * });
+ */
 export function array<T extends PawType>(unit: T, message?: string): PawArray<T> {
   return new PawArrayParser(unit, message);
 }
 
+/**
+ * Create a new object schema parsing.
+ * @example
+ * const Schema = paw.object({ name: paw.string() });
+ *
+ * expect(Schema.parse({ name: "test" })).toStrictEqual({ name: "test" });
+ * expect(Schema.safeParse("test")).toMatchObject({
+ *   ok: false,
+ *   error: {
+ *     kind: "object-type",
+ *     message: "Expected an object but received string"
+ *   }
+ * });
+ */
 export function object<T extends Record<string, PawType>>(
   fields: T,
   message?: string,
@@ -1909,6 +1998,20 @@ export function object<T extends Record<string, PawType>>(
   return new PawObjectParser(fields, message);
 }
 
+/**
+ * Create a new literal schema parsing.
+ * @example
+ * const Schema = paw.literal(["cat", "dog"]);
+ *
+ * expect(Schema.parse("cat")).toBe("cat");
+ * expect(Schema.safeParse("test")).toMatchObject({
+ *   ok: false,
+ *   error: {
+ *     kind: "literal",
+ *     message: "Expected one of the following values: cat, dog"
+ *   }
+ * });
+ */
 export function literal<const T extends string | number | boolean>(
   values: T[],
   message?: string,
@@ -1916,6 +2019,21 @@ export function literal<const T extends string | number | boolean>(
   return new PawLiteralParser(values, message);
 }
 
+/**
+ * Create a new union schema parsing.
+ * @example
+ * const Schema = paw.union([paw.string(), paw.number()]);
+ *
+ * expect(Schema.parse("cat")).toBe("cat");
+ * expect(Schema.parse(2)).toBe(2);
+ * expect(Schema.safeParse(true)).toMatchObject({
+ *   ok: false,
+ *   error: {
+ *     kind: "union",
+ *     message: "Value does not match any of the union variants"
+ *   }
+ * });
+ */
 export function union<T extends Array<PawSchema<any, any>>>(
   schemas: T,
   message?: string,
