@@ -975,12 +975,12 @@ class PawStringParser implements PawString {
     input = refined.value;
 
     if (input === null || input === undefined) {
-      const message = this.reqmessage ?? this.message ?? `Expected string but received ${input}`;
+      const message = this.reqmessage ?? this.message ?? `Expected a string but received ${input}`;
       return new PawError(new PawRequiredIssue(message));
     }
 
     if (typeof input !== "string") {
-      const message = this.message ?? `Expected string but received ${typeof input}`;
+      const message = this.message ?? `Expected a string but received ${typeof input}`;
       return new PawError(new PawStringIssue(message));
     }
 
@@ -1179,12 +1179,12 @@ class PawBooleanParser implements PawBoolean {
     input = refined.value;
 
     if (input === null || input === undefined) {
-      const message = this.reqmessage ?? this.message ?? `Expected boolean but received ${input}`;
+      const message = this.reqmessage ?? this.message ?? `Expected a boolean but received ${input}`;
       return new PawError(new PawRequiredIssue(message));
     }
 
     if (typeof input !== "boolean") {
-      const message = this.message ?? "Value is not a boolean";
+      const message = this.message ?? `Expected a boolean but received ${typeof input}`;
       return new PawError(new PawBooleanIssue(message));
     }
 
@@ -1451,12 +1451,12 @@ class PawArrayParser<T extends PawType> implements PawArray<T> {
 
   private parseArray(input: unknown): PawResult<any[], PawIssue> {
     if (input === null || input === undefined) {
-      const message = this.reqmessage ?? this.message ?? `Expected array but received ${input}`;
+      const message = this.reqmessage ?? this.message ?? `Expected an array but received ${input}`;
       return new PawError(new PawRequiredIssue(message));
     }
 
     if (!Array.isArray(input)) {
-      const message = this.message ?? `Expected array but received ${typeof input}`;
+      const message = this.message ?? `Expected an array but received ${typeof input}`;
       return new PawError(new PawArrayTypeIssue(message));
     }
 
@@ -1675,12 +1675,12 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
 
   private parseObject(val: unknown): PawResult<Record<string, unknown>, PawIssue> {
     if (val === null || val === undefined) {
-      const message = this.reqmessage ?? this.message ?? `Expected object but received ${val}`;
+      const message = this.reqmessage ?? this.message ?? `Expected an object but received ${val}`;
       return new PawError(new PawRequiredIssue(message));
     }
 
     if (typeof val !== "object") {
-      const message = this.message ?? `Expected object but received ${typeof val}`;
+      const message = this.message ?? `Expected an object but received ${typeof val}`;
       return new PawError(new PawObjectTypeIssue(message));
     }
 
