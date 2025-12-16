@@ -44,8 +44,18 @@ type PawParsedObject<T extends Record<string, PawType>> = {
   [K in keyof T]: PawInfer<T[K]>;
 } & {};
 
+/**
+ * A context that holds states of the parsing process used to build refinements on the input.
+ */
 export class PawRefineContext {
+  /**
+   * Refine `input` is the value before parsing. If there are more than 1 `refine` defined,
+   * then the value of subsequent `input` is of output of the previous `refine`.
+   */
   readonly input: unknown;
+  /**
+   * Refers to which parsing schema the `refine` belongs to.
+   */
   readonly src: PawType["kind"];
 
   constructor(input: unknown, src: PawType["kind"]) {
@@ -53,16 +63,50 @@ export class PawRefineContext {
     this.src = src;
   }
 
+  /**
+   * Method to return a successful refined value.
+   * @example
+   * const Schema = paw.string().refine((ctx) => {
+   *   return ctx.ok(ctx.input.toString());
+   * });
+   *
+   * expect(Schema.parse(2)).toStrictEqual("2")
+   */
   ok<T>(output: T): PawOk<T> {
     return new PawOk(output);
   }
 
+  /**
+   * Method to return an issue when the refinement fails.
+   * @example
+   * const Schema = paw.number().refine((ctx) => {
+   *   const n = Number(ctx.input);
+   *   if (Number.isNaN(n)) {
+   *     return ctx.error("Schema does not accept NaN");
+   *   }
+   *   return ctx.ok(n);
+   * });
+   *
+   * const result = Schema.safeParse("test");
+   * expect(result).toMatchObject({
+   *   ok: false,
+   *   error: {
+   *     kind: "refine",
+   *     src: "number",
+   *     message: "Schema does not accept NaN"
+   *   }
+   * });
+   */
   error(message: string, path?: PawIssuePath): PawError<PawRefineIssue> {
     const issue = new PawRefineIssue(message, this.src, path);
     return new PawError(issue);
   }
 }
 
+/**
+ * Type signature of a refinement function. It receives the {@link PawRefineContext} as parameter
+ * that should be used to refine the value.
+ */
 export type PawRefineFn<O = any> = (ctx: PawRefineContext) => PawResult<O, PawRefineIssue>;
 
 class PawRefinementPipeline {
@@ -88,28 +132,103 @@ class PawRefinementPipeline {
 
 export interface PawParser<T> {
   /**
-   * @throws {Error} Throws a `PawParseError` when parsing fails
+   * Failable method that parses `val` into  {@link T}
+   * @throws {Error} Throws a {@link PawParseError} when parsing fails
+   * @example
+   * const Schema = paw.string();
+   * expect(Schema.parse("test")).toBe("test");
    */
   parse(val: unknown): T;
   /**
-   * Parse `val` into a `PawResult<T, PawIssue>`, returning a `PawError<PawIssue>` when the parse
-   * fails and `PawOk<T>` when succeeds.
+   * Parse `val` into a {@link PawResult<T, PawIssue>}, returning a {@link PawError<PawIssue>} when the parse
+   * fails and {@link PawOk<T>} when succeeds.
+   * @example
+   * const Schema = paw.number();
+   * const result = Schema.safeParse(2);
+   * expect(result.ok).toBeTruthy();
+   * if (result.ok) {
+   *   expect(result.value).toStrictEqual(2);
+   * } else {
+   *   expect(result.error).toMatchObject({
+   *     kind: "number",
+   *     message: expect.any(String)
+   *   });
+   * }
    */
   safeParse(val: unknown): PawResult<T, PawIssue>;
 }
 
 export interface PawSchema<N extends string, T> extends PawParser<T>, StandardSchemaV1<unknown, T> {
+  /** Kind of the parsing schema. */
   readonly kind: N;
 }
 
+/**
+ * An interface for refinements. All schemas that support refinements should implement this interface.
+ */
 export interface PawRefinable<S extends PawParser<any>> {
-  /** Transform the value before validation */
+  /**
+   * Refine receives a closure to transform the value before parsing. Each refinement closure may
+   * return a new value that is forwarded to the next refinement and to the parser.
+   * @example
+   * const Schema = paw.number().refine((ctx) => {
+   *   return ctx.ok(Number(ctx.input));
+   * });
+   *
+   * expect(Schema.parse("2")).toBe(2);
+   */
   refine<T>(fn: PawRefineFn<T>): S;
 }
 
+/**
+ * A context that holds states of the parsing process used to build custom validation.
+ */
 export class PawCheckContext<O> {
+  /**
+   * Check `input` is the value before parsing. It may either be the original value or the last
+   * output of a refinement if the schema also supports `refine`.
+   * @example
+   * const Schema = paw.string().check((ctx) => {
+   *   if (typeof ctx.input !== "string") {
+   *     return ctx.error("Expected input to be of type string");
+   *   }
+   *   return ctx.ok();
+   * });
+   *
+   * expect(Schema.parse("test")).toBe("test");
+   * @example
+   * const Schema = paw.string()
+   *   .transform((ctx) => ctx.ok(ctx.input.toString()))
+   *   .check((ctx) => {
+   *     if (typeof ctx.input !== "string") {
+   *       return ctx.error("Expected input to be of type string");
+   *     }
+   *     return ctx.ok();
+   *   });
+   *
+   * // note that here we pass `2` as value, but the check does not return an
+   * // error because `input` is mutated through `refine`
+   * expect(Schema.parse(2)).toBe("2");
+   */
   public readonly input: unknown;
+  /**
+   * Check `output` is the parsed value. Note that the transformations do not affect the value
+   * of `output`, so it will always be the value parsed by the current schema.
+   * @example
+   * const Schema = paw.number().int().check((ctx) => {
+   *   // note that `output` is a number here
+   *   if (ctx.output % 2 !== 0) {
+   *     return ctx.error("Expected value to be even");
+   *   }
+   *   return ctx.ok();
+   * });
+   *
+   * expect(Schema.parse(2)).toBe(2);
+   */
   public readonly output: O;
+  /**
+   * Refers to which parsing schema the `check` belongs to.
+   */
   public readonly src: PawType["kind"];
 
   constructor(input: unknown, output: O, src: PawType["kind"]) {
@@ -118,16 +237,44 @@ export class PawCheckContext<O> {
     this.src = src;
   }
 
+  /**
+   * Method to return a successful check.
+   * @example
+   * const Schema = paw.string().check((ctx) => {
+   *   if (ctx.output === "cow") {
+   *     return ctx.error("Cow is not allowed here!")
+   *   }
+   *   return ctx.oK();
+   * });
+   *
+   * expect(Schema.parse("test")).toBe("test")
+   */
   ok(): PawOk<void> {
     return PawOk.empty();
   }
 
+  /**
+   * Method to return an issue when the check fails.
+   * @example
+   * const Schema = paw.number().int().check((ctx) => {
+   *   if (ctx.output % 2 !== 0) {
+   *     return ctx.error("Expected value to be even");
+   *   }
+   *   return ctx.ok();
+   * });
+   *
+   * expect(Schema.parse(4)).toEqual(4);
+   */
   error(message: string, path?: PawIssuePath): PawError<PawCheckIssue> {
     const issue = new PawCheckIssue(message, this.src, path);
     return new PawError(issue);
   }
 }
 
+/**
+ * Type signature of a check function. It receives the {@link PawCheckContext} as parameter
+ * that should be used to make your own validation.
+ */
 export type PawCheckFn<T> = (ctx: PawCheckContext<T>) => PawResult<void, PawCheckIssue>;
 
 class PawCheckPipeline<T> {
@@ -174,16 +321,54 @@ class PawStandardSchemaProps<S extends PawSchema<any, any>>
 
 // TODO: maybe should allow configuring checks to run in immediate mode or retained mode
 // also, maybe `check` should have it's own issue type
+/**
+ * An interface for checks. All schemas that supports checks should implement this interface.
+ */
 export interface PawCheckable<S, T> {
   /**
    * Add a custom check constraint. Checks runs after the parsing and are usually meant to validate
    * rules that the typesystem does not support.
+   * @example
+   * const Schema = paw.string().check((ctx) => {
+   *   if (ctx.output === "foo") {
+   *     return ctx.error("String cannot be foo!");
+   *   }
+   *   return ctx.ok();
+   * });
+   *
+   * expect(Schema.parse("test")).toBe("test");
+   * expect(Schema.safeParse("foo")).toMatchObject({
+   *   ok: false,
+   *   error: {
+   *     kind: "check",
+   *     src: "string",
+   *     message: "String cannot be foo!"
+   *   }
+   * });
    */
   check(fn: PawCheckFn<T>): S;
 }
 
+/**
+ * A context that holds states of the parsing process used to build transformations on the output.
+ */
 export class PawTransformContext<I> {
+  /**
+   * Transform `output` refers to the output of the parsing schema.
+   * @example
+   * const Schema = paw.string().transform((ctx) => {
+   *   if (typeof ctx.output !== "string") {
+   *     throw new Error("Output of schema string should be a string")
+   *   }
+   *   return ctx.ok(Number(ctx.output));
+   * });
+   *
+   * expect(Schema.parse("2")).toBe(2);
+   */
   public readonly output: I;
+  /**
+   * Refers to which parsing schema the `transform` belongs to.
+   */
   public readonly src: PawType["kind"];
 
   constructor(output: I, src: PawType["kind"]) {
@@ -191,22 +376,68 @@ export class PawTransformContext<I> {
     this.src = src;
   }
 
+  /**
+   * Method to return a successful transformed value.
+   * @example
+   * const Schema = paw.string().transform((ctx) => {
+   *   return ctx.ok(Number(ctx.output));
+   * });
+   *
+   * expect(Schema.parse("2")).toStrictEqual(2);
+   */
   ok<O>(out: O): PawOk<O> {
     return new PawOk(out);
   }
 
+  /**
+   * Method to return an issue when the transformation fails.
+   * @example
+   * const Schema = paw.string().transform((ctx) => {
+   *   const n = Number(ctx.output);
+   *   if (Number.isNaN(n)) {
+   *     return ctx.error("String is not a serialized number");
+   *   }
+   *   return ctx.ok(n);
+   * });
+   *
+   * const result = Schema.safeParse("test");
+   * expect(result).toMatchObject({
+   *   ok: false,
+   *   error: {
+   *     kind: "string",
+   *     message: "String is not a serialized number"
+   *   }
+   * });
+   */
   error(message: string, path?: PawIssuePath): PawError<PawTransformIssue> {
     const issue = new PawTransformIssue(message, this.src, path);
     return new PawError(issue);
   }
 }
 
+/**
+ * Type signature of a transformation function. It receives the {@link PawTransformContext} as parameter
+ * that should be used to transform the value.
+ */
 export type PawTransformFn<I, O> = (ctx: PawTransformContext<I>) => PawResult<O, PawTransformIssue>;
 
-interface PawTransformable<T> {
+/**
+ * An interface for transforms. All schemas that supports transformations should implement this interface.
+ */
+export interface PawTransformable<T> {
   /**
    * Transform the parsed value into another value. Transform function runs after parsing
-   * and check constraints
+   * and check constraints.
+   * @example
+   * const Schema = paw.string().transform((ctx) => {
+   *   const n = Number(ctx.output);
+   *   if (Number.isNaN(n)) {
+   *     return ctx.error("Value must be a string serialized number");
+   *   }
+   *   return ctx.ok(n);
+   * });
+   *
+   * expect(Schema.parse("2")).toBe(2);
    */
   transform<U>(fn: PawTransformFn<T, U>): PawTransform<U>;
 }
@@ -217,12 +448,31 @@ export interface PawOptional<S extends PawSchema<string, any>>
   extends PawSchema<"optional", ReturnType<S["parse"]> | undefined> {}
 
 export interface PawRequireable<S extends PawSchema<string, any>> {
-  /** Set the required error message. Does NOT change any validations or type schema. */
+  /**
+   * Set the required error message. Does NOT change any validations or type schema.
+   * @example
+   * const Schema = paw.number().required("A number is required!");
+   *
+   * expect(Schema.safeParse(undefined)).toMatchObject({
+   *   ok: false,
+   *   error: {
+   *     kind: "required",
+   *     message: "A number is required!"
+   *   }
+   * });
+   */
   required(message: string): S;
 }
 
 export interface PawMaybeOptional<S extends PawSchema<string, any>> {
-  /** Allow value to be `undefined` */
+  /**
+   * Allow value to be `undefined`.
+   * @example
+   * const Schema = paw.object({ name: paw.string () }).optional();
+   *
+   * expect(Schema.parse(undefined)).toBe(undefined);
+   * expect(Schema.parse({ name: "paw" })).toStrictEqual({ name: "paw" });
+   */
   optional(): PawOptional<S>;
 }
 
@@ -231,7 +481,14 @@ export interface PawNullable<S extends PawSchema<string, any>>
     PawMaybeOptional<PawNullable<S>> {}
 
 export interface PawMaybeNullable<S extends PawSchema<string, any>> {
-  /** Allow value to be `null` */
+  /**
+   * Allow value to be `null`.
+   * @example
+   * const Schema = paw.object({ name: paw.string () }).nullable();
+   *
+   * expect(Schema.parse(null)).toBe(null);
+   * expect(Schema.parse({ name: "paw" })).toStrictEqual({ name: "paw" });
+   */
   nullable(): PawNullable<S>;
 }
 
@@ -243,9 +500,37 @@ export interface PawString
     PawCheckable<PawString, string>,
     PawTransformable<string>,
     PawRequireable<PawString> {
-  /** Set minimum (inclusive) acceptable length for the string.  */
+  /**
+   * Set minimum (inclusive) acceptable length for the string.
+   * @example
+   * const Schema = paw.string().min(1);
+   *
+   * expect(Schema.parse("a")).toBe("a");
+   * expect(Schema.parse("ab")).toBe("ab");
+   * expect(Schema.safeParse("")).toMatchObject({
+   *   ok: false,
+   *   error: {
+   *     kind: "string",
+   *     message: "String length cannot be less than 1"
+   *   }
+   * });
+   */
   min(length: number, message?: string): PawString;
-  /** Set maximum (inclusive) acceptable length for the string */
+  /**
+   * Set maximum (inclusive) acceptable length for the string.
+   * @example
+   * const Schema = paw.string().max(2);
+   *
+   * expect(Schema.parse("a")).toBe("a");
+   * expect(Schema.parse("ab")).toBe("ab");
+   * expect(Schema.safeParse("abc")).toMatchObject({
+   *   ok: false,
+   *   error: {
+   *     kind: "string",
+   *     message: "String length cannot be more than 2"
+   *   }
+   * });
+   */
   max(length: number, message?: string): PawString;
 }
 
@@ -257,8 +542,52 @@ export interface PawNumber
     PawCheckable<PawNumber, number>,
     PawTransformable<number>,
     PawRequireable<PawNumber> {
+  /**
+   * Set parser to validate if number is an integer.
+   * @example
+   * const Schema = paw.number().int();
+   *
+   * expect(Schema.parse(2)).toBe(2);
+   * expect(Schema.safeParse(2.1)).toMatchObject({
+   *   ok: false,
+   *   error: {
+   *     kind: "number",
+   *     message: "Expected number to be a valid integer"
+   *   }
+   * });
+   */
   int(message?: string): PawNumber;
+  /**
+   * Set minimum (inclusive) allowed value.
+   * @example
+   * const Schema = paw.number().min(1);
+   *
+   * expect(Schema.parse(2)).toBe(2);
+   * expect(Schema.parse(1)).toBe(1);
+   * expect(Schema.safeParse(0)).toMatchObject({
+   *   ok: false,
+   *   error: {
+   *     kind: "number",
+   *     message: "Expected number to be greater than or equal to 1"
+   *   }
+   * });
+   */
   min(val: number, message?: string): PawNumber;
+  /**
+   * Set maximum (inclusive) allowed value.
+   * @example
+   * const Schema = paw.number().max(2);
+   *
+   * expect(Schema.parse(1)).toBe(1);
+   * expect(Schema.parse(2)).toBe(2);
+   * expect(Schema.safeParse(3)).toMatchObject({
+   *   ok: false,
+   *   error: {
+   *     kind: "number",
+   *     message: "Expected number to be less than or equal to 2"
+   *   }
+   * });
+   */
   max(val: number, message?: string): PawNumber;
 }
 
@@ -293,10 +622,56 @@ export interface PawArray<T extends PawType>
     PawRequireable<PawArray<T>> {
   /**
    * Set array parsing to immediate mode. Immediate mode stops parsing the object when the first
-   * error is encountered.
+   * issue is encountered.
+   * @example
+   * const Schema = paw.array(paw.number()).immediate();
+   *
+   * expect(Schema.parse([1, 2, 3])).toStrictEqual([1, 2, 3]);
+   * expect(Schema.safeParse([1, 2, "test"])).toMatchObject({
+   *   ok: false,
+   *   error: {
+   *     kind: "array-schema",
+   *     message: "Item at index 2 failed schema validation",
+   *     issues: [{
+   *       idx: 2,
+   *       issue: {
+   *         kind: "number",
+   *         message: "Expected a number but received string"
+   *       }
+   *     }]
+   *   }
+   * });
    */
   immediate(): PawArray<T>;
+  /**
+   * Set minimum (inclusive) length allowed for the array.
+   * @example
+   * const Schema = paw.array(paw.number()).min(1);
+   *
+   * expect(Schema.parse([1])).toStrictEqual([1]);
+   * expect(Schema.safeParse([])).toMatchObject({
+   *   ok: false,
+   *   error: {
+   *     kind: "array-type",
+   *     message: "Array cannot have less than 1 items"
+   *   }
+   * });
+   */
   min(size: number, message?: string): PawArray<T>;
+  /**
+   * Set maximum (inclusive) length allowed for the array.
+   * @example
+   * const Schema = paw.array(paw.number()).max(2);
+   *
+   * expect(Schema.parse([1, 2])).toStrictEqual([1, 2]);
+   * expect(Schema.safeParse([1, 2, 3])).toMatchObject({
+   *   ok: false,
+   *   error: {
+   *     kind: "array-type",
+   *     message: "Array cannot have more than 2 items"
+   *   }
+   * });
+   */
   max(size: number, message?: string): PawArray<T>;
 }
 
@@ -311,19 +686,71 @@ export interface PawObject<T extends Record<string, PawType>>
   /**
    * Set object parsing to immediate mode. Immediate mode stops parsing the object when the first
    * error is encountered.
+   * @example
+   * const Schema = paw.object({
+   *   name: paw.string().min(1),
+   *   age: paw.number().int().min(0)
+   * })
+   * .immediate();
+   *
+   * const src = { name: "marin", age : 17 }
+   * expect(Schema.parse(src)).toStrictEqual(src);
+   * expect(Schema.safeParse({ name: "" })).toMatchObject({
+   *   ok: false,
+   *   error: {
+   *     kind: "object-schema",
+   *     message: "Property 'name' failed object schema validation",
+   *     issues: [{
+   *       field: "name",
+   *       issue: {
+   *         kind: "string",
+   *         message: "String length cannot be less than 1"
+   *       }
+   *     }]
+   *   }
+   * });
    */
   immediate(): PawObject<T>;
   /**
    * Set parser to include only defined properties in parsed object.
+   * @example
+   * const Schema = paw.object({ name: paw.string() }).strict();
+   *
+   * expect(Schema.parse({ name: "marin" })).toStrictEqual({ name: "test" });
+   * expect(Schema.parse({ name: "marin", age: 17 })).toStrictEqual({ name: "test" })
    */
   strict(): PawObject<T>;
   /**
    * Set the parser to include the `path` in issues.
+   * @example
+   * const Schema = paw.object({ name: paw.string() }).pathed();
+   *
+   * expect(Schema.safeParse({ name: 17 })).toMatchObject({
+   *   ok: false,
+   *   error: {
+   *     kind: "object-schema",
+   *     message: "Object failed schema validation",
+   *     path: [],
+   *     issues: [{
+   *       field: "name",
+   *       issue: {
+   *         kind: "string",
+   *         path: ["name"],
+   *         message: "Expected string but received number"
+   *       }
+   *     }]
+   *   }
+   * });
    */
   pathed(): PawObject<T>;
   /**
    * Creates a new object schema extending from current defined schema. The new schema inherits
    * all configurations, such as `immediate` and `strict`.
+   * @example
+   * const BaseSchema = paw.object({ name: paw.string() });
+   * const Schema = BaseSchema.extend({ age: paw.number().int().min(0) });
+   *
+   * expect(Schema.parse({ name: "marin", age: 17 })).toStrictEqual({ name: "marin", age: 17 });
    */
   extend<U extends Record<string, PawType>>(
     fields: U,
@@ -672,13 +1099,14 @@ class PawNumberParser implements PawNumber {
 
     if (this.mincfg && input < this.mincfg.value) {
       const message =
-        this.mincfg.message ?? `Expected number to be less than or equal to ${this.mincfg.value}`;
+        this.mincfg.message ??
+        `Expected number to be greater than or equal to ${this.mincfg.value}`;
       return new PawError(new PawNumberIssue(message));
     }
 
     if (this.maxcfg && input > this.maxcfg.value) {
       const message =
-        this.maxcfg.message ?? `Expected number to be bigger than or equal to ${this.maxcfg.value}`;
+        this.maxcfg.message ?? `Expected number to be less than or equal to ${this.maxcfg.value}`;
       return new PawError(new PawNumberIssue(message));
     }
 
@@ -971,7 +1399,7 @@ class PawArrayParser<T extends PawType> implements PawArray<T> {
       const parsed = this.unit.safeParse(v);
       if (!parsed.ok) {
         const issue: PawArrayIndexIssue = { idx: i, issue: parsed.error };
-        const message = this.message ?? `Item at ${i} failed schema validation`;
+        const message = this.message ?? `Item at index ${i} failed schema validation`;
         return new PawError(new PawArraySchemaIssue(message, [issue]));
       }
     }
@@ -1281,7 +1709,7 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
   }
 
   private getFieldIssueMessage(key: string): string {
-    return this.message ?? `Field '${key}' failed object schema validation`;
+    return this.message ?? `Property '${key}' failed object schema validation`;
   }
 }
 

@@ -4,6 +4,8 @@ A simple implementation of JSON schema parsing inspired by `zod`. This implement
 
 The key advantage of Paw over zod is the customization of how nestable schemas, i.e. objects and arrays, are parsed. Nestable schemas have two parsing modes: `immediate` and `retained`. Immediate mode stops parsing the schema when it encounters the first issue, and retained mode parses the whole object and return all issues encountered. Parsing can also be strict or non-strict; the difference is that strict mode guarantees that the output contains only data defined in the schema, meanwhile the advantage of non-strict parsing is avoiding unnecessary copies or clones when possible (making it faster).
 
+This library is minimal on purpose, having no third party dependencies and being basically a single file because it's meant to facilitate copy/paste into projects.
+
 ```ts
 import * as paw "paw";
 
@@ -17,13 +19,13 @@ const result = PersonSchema.safeParse({
   age: 18
 });
 
-expect(result.ok).toBeTruthy();
-if (result.ok) {
-  expect(result.value).toStrictEqual({
+expect(result).toMatchObject({
+  ok: true,
+  value: {
     name: "John Doe",
     age: 18
-  });
-}
+  }
+});
 ```
 
 ### Validation
