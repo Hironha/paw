@@ -158,6 +158,13 @@ export interface PawParser<T> {
   safeParse(val: unknown): PawResult<T, PawIssue>;
 }
 
+/**
+ * Interface representing a Paw schema. It combines the core parsing capabilities
+ * defined by {@link PawParser} with the {@link StandardSchemaV1} specification.
+ *
+ * @template N - The string literal type representing the kind of the schema.
+ * @template T - The type that the schema will infer and return after parsing.
+ */
 export interface PawSchema<N extends string, T> extends PawParser<T>, StandardSchemaV1<unknown, T> {
   /** Kind of the parsing schema. */
   readonly kind: N;
