@@ -101,7 +101,7 @@ describe("paw", () => {
       expect(!num.safeParse({}).ok, "object is not a number").toBeTruthy();
     });
 
-    test("number parse error returns  correct number error", () => {
+    test("number parse error returns correct number error", () => {
       const num = paw.number("invalid number");
       const result = num.safeParse("test");
       expect(!result.ok, "test is not a number").toBeTruthy();
@@ -172,6 +172,87 @@ describe("paw", () => {
     test("number transform works", () => {
       const Schema = paw.number().transform((ctx) => ctx.ok(ctx.output.toString()));
       const result = Schema.safeParse(2);
+      expect(result.ok).toBeTruthy();
+      const value = PawOk.unwrap(result);
+      expect(value).toStrictEqual("2");
+    });
+  });
+
+  describe("bigint", () => {
+    test("bigint parser works", () => {
+      const bigint = paw.bigint();
+
+      expect(bigint.parse(2n)).toStrictEqual(2n);
+      expect(PawOk.unwrap(bigint.safeParse(2n))).toStrictEqual(2n);
+      expect(!bigint.safeParse(null).ok, "null is not a bigint").toBeTruthy();
+      expect(!bigint.safeParse("test").ok, "test it not a bigint").toBeTruthy();
+      expect(!bigint.safeParse({}).ok, "object is not a bigint").toBeTruthy();
+      expect(!bigint.safeParse(2).ok, "number is not a bigint").toBeTruthy();
+    });
+
+    test("bigint parse error returns bigint number error", () => {
+      const bigint = paw.bigint("invalid bigint");
+      const result = bigint.safeParse("test");
+      expect(!result.ok, "test is not a bigint").toBeTruthy();
+
+      const error = PawError.unwrap(result);
+      expect(error).toMatchObject({
+        kind: "bigint",
+        message: "invalid bigint",
+      });
+    });
+
+    test("bigint min works", () => {
+      const bigint = paw.bigint().min(10n);
+
+      expect(bigint.parse(12n)).toStrictEqual(12n);
+      expect(bigint.parse(10n)).toStrictEqual(10n);
+      expect(!bigint.safeParse(9n).ok, "9n is less than 10n").toBeTruthy();
+      expect(!bigint.safeParse("test").ok, "test is not a bigint").toBeTruthy();
+    });
+
+    test("bigint max works", () => {
+      const bigint = paw.bigint().max(10n);
+
+      expect(bigint.parse(9n)).toStrictEqual(9n);
+      expect(bigint.parse(10n)).toStrictEqual(10n);
+      expect(!bigint.safeParse(11n).ok, "11 is bigger than 10").toBeTruthy();
+      expect(!bigint.safeParse("test").ok, "test is not a bigint").toBeTruthy();
+    });
+
+    test("bigint refine works", () => {
+      const bigint = paw.bigint().refine((ctx) => {
+        if (typeof ctx.input === "string") {
+          try {
+            return ctx.ok(BigInt(ctx.input));
+          } catch (e) {
+            return ctx.ok(ctx.input);
+          }
+        }
+        return ctx.ok(ctx.input);
+      });
+
+      expect(bigint.parse("12")).toStrictEqual(12n);
+      expect(!bigint.safeParse("false").ok, "false cannot be converted to bigint").toBeTruthy();
+      expect(!bigint.safeParse(null).ok, "null cannot be converted to bigint").toBeTruthy();
+      expect(!bigint.safeParse({}).ok, "object cannot be converted to bigint").toBeTruthy();
+    });
+
+    test("bigint check works", () => {
+      const checkmsg = "not a minor age";
+      const num = paw.bigint().check((ctx) => (ctx.output < 18n ? ctx.ok() : ctx.error(checkmsg)));
+      let result = num.safeParse(12n);
+      expect(result.ok).toBeTruthy();
+
+      result = num.safeParse(22n);
+      expect(!result.ok).toBeTruthy();
+      const error = PawError.unwrap(result);
+      expect(error).toStrictEqual(new PawCheckIssue(checkmsg, "bigint"));
+    });
+
+    test("bigint transform works", () => {
+      const Schema = paw.bigint().transform((ctx) => ctx.ok(ctx.output.toString()));
+      const result = Schema.safeParse(2n);
       expect(result.ok).toBeTruthy();
       const value = PawOk.unwrap(result);
       expect(value).toStrictEqual("2");

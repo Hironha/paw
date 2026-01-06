@@ -18,6 +18,7 @@ import {
   PawCheckIssue,
   PawRefineIssue,
   PawTransformIssue,
+  PawBigIntIssue,
 } from "./issue";
 import type { StandardSchemaV1 } from "./standard-schema";
 
@@ -30,6 +31,7 @@ export type PawType =
   | PawBoolean
   | PawUnknown
   | PawAny
+  | PawBigInt
   | PawArray<PawType>
   | PawObject<Record<string, PawType>>
   | PawOptional<any>
@@ -598,6 +600,57 @@ export interface PawNumber
   max(val: number, message?: string): PawNumber;
 }
 
+export interface PawBigInt
+  extends PawSchema<"bigint", bigint>,
+    PawRefinable<PawBigInt>,
+    PawMaybeOptional<PawBigInt>,
+    PawMaybeNullable<PawBigInt>,
+    PawCheckable<PawBigInt, bigint>,
+    PawTransformable<bigint>,
+    PawRequireable<PawBigInt> {
+  /**
+   * Set minimum (inclusive) allowed value for the bigint.
+   * @example
+   * const Schema = paw.bigint().min(1n);
+   *
+   * expect(Schema.parse(2n)).toBe(2n);
+   * expect(Schema.parse(1n)).toBe(1n);
+   * expect(Schema.safeParse(0n)).toMatchObject({
+   *   ok: false,
+   *   error: {
+   *     kind: "bigint",
+   *     message: "Expected bigint to be greater than or equal to 1"
+   *   }
+   * });
+   */
+  min(val: bigint, message?: string): PawBigInt;
+  /**
+   * Set maximum (inclusive) allowed value for the bigint.
+   * @example
+   * const Schema = paw.bigint().max(2n);
+   *
+   * expect(Schema.parse(1n)).toBe(1n);
+   * expect(Schema.parse(2n)).toBe(2n);
+   * expect(Schema.safeParse(3n)).toMatchObject({
+   *   ok: false,
+   *   error: {
+   *     kind: "bigint",
+   *     message: "Expected bigint to be less than or equal to 2"
+   *   }
+   * });
+   */
+  max(val: bigint, message?: string): PawBigInt;
+}
+
+export interface PawBoolean
+  extends PawSchema<"boolean", boolean>,
+    PawRefinable<PawBoolean>,
+    PawMaybeOptional<PawBoolean>,
+    PawMaybeNullable<PawBoolean>,
+    PawCheckable<PawBoolean, boolean>,
+    PawTransformable<boolean>,
+    PawRequireable<PawBoolean> {}
+
 export interface PawBoolean
   extends PawSchema<"boolean", boolean>,
     PawRefinable<PawBoolean>,
@@ -1115,6 +1168,109 @@ class PawNumberParser implements PawNumber {
       const message =
         this.maxcfg.message ?? `Expected number to be less than or equal to ${this.maxcfg.value}`;
       return new PawError(new PawNumberIssue(message));
+    }
+
+    const checkResult = new PawCheckPipeline(this.checks, this.kind).run(input, input);
+    if (!checkResult.ok) {
+      return checkResult;
+    }
+
+    return new PawOk(input);
+  }
+}
+
+const BIGINT = "bigint" as const;
+class PawBigIntParser implements PawBigInt {
+  public readonly kind = BIGINT;
+  public readonly "~standard": StandardSchemaV1.Props<unknown, bigint>;
+
+  private readonly message: string | undefined;
+  private reqmessage: string | undefined;
+  private mincfg: { value: bigint; message?: string } | undefined;
+  private maxcfg: { value: bigint; message?: string } | undefined;
+  private refinements: PawRefineFn[];
+  private checks: PawCheckFn<bigint>[];
+
+  constructor(message?: string) {
+    this.message = message;
+    this.checks = [];
+    this.refinements = [];
+    this["~standard"] = new PawStandardSchemaProps(this);
+  }
+
+  check(fn: PawCheckFn<bigint>): PawBigInt {
+    this.checks.push(fn);
+    return this;
+  }
+
+  min(value: bigint, message?: string): PawBigInt {
+    this.mincfg = { value, message };
+    return this;
+  }
+
+  max(value: bigint, message?: string): PawBigInt {
+    this.maxcfg = { value, message };
+    return this;
+  }
+
+  optional(): PawOptional<PawBigInt> {
+    return new PawOptionalParser(this);
+  }
+
+  nullable(): PawNullable<PawBigInt> {
+    return new PawNullableParser(this);
+  }
+
+  required(message: string): PawBigInt {
+    this.reqmessage = message;
+    return this;
+  }
+
+  refine<T>(fn: PawRefineFn<T>): PawBigInt {
+    this.refinements.push(fn);
+    return this;
+  }
+
+  transform<U>(fn: PawTransformFn<bigint, U>): PawTransform<U> {
+    return new PawTransformParser(fn, this);
+  }
+
+  parse(input: unknown): bigint {
+    const result = this.safeParse(input);
+    if (!result.ok) {
+      throw new PawParseError(result.error);
+    }
+    return result.value;
+  }
+
+  safeParse(input: unknown): PawResult<bigint, PawIssue> {
+    const refined = new PawRefinementPipeline(this.refinements, this.kind).run(input);
+    if (!refined.ok) {
+      return refined;
+    }
+    input = refined.value;
+
+    if (input === null || input === undefined) {
+      const message = this.reqmessage ?? this.message ?? `Expected a bigint but received ${input}`;
+      return new PawError(new PawRequiredIssue(message));
+    }
+
+    if (typeof input !== "bigint") {
+      const message = this.message ?? `Expected a bigint but received ${typeof input}`;
+      return new PawError(new PawBigIntIssue(message));
+    }
+
+    if (this.mincfg && input < this.mincfg.value) {
+      const message =
+        this.mincfg.message ??
+        `Expected bigint to be greater than or equal to ${this.mincfg.value}`;
+      return new PawError(new PawBigIntIssue(message));
+    }
+
+    if (this.maxcfg && input > this.maxcfg.value) {
+      const message =
+        this.maxcfg.message ?? `Expected bigint to be less than or equal to ${this.maxcfg.value}`;
+      return new PawError(new PawBigIntIssue(message));
     }
 
     const checkResult = new PawCheckPipeline(this.checks, this.kind).run(input, input);
@@ -1921,6 +2077,24 @@ export function string(message?: string): PawString {
  */
 export function number(message?: string): PawNumber {
   return new PawNumberParser(message);
+}
+
+/**
+ * Create a new bigint schema parsing.
+ * @example
+ * const Schema = paw.bigint();
+ *
+ * expect(Schema.parse(2n)).toBe(2n);
+ * expect(Schema.safeParse(2)).toMatchObject({
+ *   ok: false,
+ *   error: {
+ *     kind: "bigint",
+ *     message: "Expected a bigint but received number"
+ *   }
+ * });
+ */
+export function bigint(message?: string): PawBigInt {
+  return new PawBigIntParser(message);
 }
 
 /**

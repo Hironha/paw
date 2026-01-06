@@ -5,6 +5,7 @@ export type PawIssue =
   | PawRequiredIssue
   | PawStringIssue
   | PawNumberIssue
+  | PawBigIntIssue
   | PawBooleanIssue
   | PawArrayTypeIssue
   | PawArraySchemaIssue
@@ -58,6 +59,15 @@ export class PawStringIssue extends PawIssueBase {
 const NUMBER = "number" as const;
 export class PawNumberIssue extends PawIssueBase {
   public readonly kind = NUMBER;
+
+  constructor(message: string, path?: PawIssuePath) {
+    super(message, path);
+  }
+}
+
+const BIGINT = "bigint" as const;
+export class PawBigIntIssue extends PawIssueBase {
+  public readonly kind = BIGINT;
 
   constructor(message: string, path?: PawIssuePath) {
     super(message, path);
