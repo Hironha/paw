@@ -1733,7 +1733,7 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
   safeParse(val: unknown): PawResult<PawParsedObject<T>, PawIssue> {
     const result = this.isImmediate ? this.safeParseImmediate(val) : this.safeParseRetained(val);
     if (!result.ok && this.isPathed) {
-      const pathedIssues = this.makeIssueWithPath(result.error);
+      const pathedIssues = this.setNestedIssuePath(result.error);
       return new PawError(pathedIssues);
     }
     return result;
@@ -1850,19 +1850,18 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
     return new PawOk(val as Record<string, unknown>);
   }
 
-  // TODO: improve how `path` is injected in `PawIssue`, since this method fews
-  // like a hack, bypassing the `readonly` constraint and using recursion
-  private makeIssueWithPath(issue: PawIssue, path: PawIssuePath = []): PawIssue {
+  // TODO: maybe improve performance for super nested issues by removing recursion
+  private setNestedIssuePath(issue: PawIssue, path: PawIssuePath = []): PawIssue {
     if (issue.kind === "object-schema") {
       for (let j = 0; j < issue.issues.length; j += 1) {
         const objIssue = issue.issues[j];
-        const pathedIssue = this.makeIssueWithPath(objIssue.issue, path.concat(objIssue.field));
+        const pathedIssue = this.setNestedIssuePath(objIssue.issue, path.concat(objIssue.field));
         Object.assign(objIssue, { issue: pathedIssue });
       }
     } else if (issue.kind === "array-schema") {
       for (let j = 0; j < issue.issues.length; j += 1) {
         const arrIssue = issue.issues[j];
-        const pathedIssue = this.makeIssueWithPath(arrIssue.issue, path.concat(arrIssue.idx));
+        const pathedIssue = this.setNestedIssuePath(arrIssue.issue, path.concat(arrIssue.idx));
         Object.assign(arrIssue, { issue: pathedIssue });
       }
     }
