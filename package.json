@@ -1,6 +1,6 @@
 {
   "name": "paw",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "A simple implementation of JSON schema parsing inspired by zod",
   "main": "index.js",
   "scripts": {
