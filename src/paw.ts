@@ -1,25 +1,25 @@
-import { PawError, PawOk, type PawResult } from "./result";
 import {
-  PawArraySchemaIssue,
   type PawArrayIndexIssue,
+  PawArraySchemaIssue,
   PawArrayTypeIssue,
+  PawBigIntIssue,
   PawBooleanIssue,
+  PawCheckIssue,
   type PawIssue,
+  type PawIssuePath,
   PawLiteralIssue,
   PawNumberIssue,
   type PawObjectFieldIssue,
   PawObjectSchemaIssue,
   PawObjectTypeIssue,
+  PawParseError,
+  PawRefineIssue,
   PawRequiredIssue,
   PawStringIssue,
-  PawUnionIssue,
-  PawParseError,
-  type PawIssuePath,
-  PawCheckIssue,
-  PawRefineIssue,
   PawTransformIssue,
-  PawBigIntIssue,
+  PawUnionIssue,
 } from "./issue";
+import { PawError, PawOk, type PawResult } from "./result";
 import type { StandardSchemaV1 } from "./standard-schema";
 
 type Pretty<T> = { [K in keyof T]: T[K] } & {};
@@ -1674,8 +1674,12 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
     clone.reqmessage = this.reqmessage;
     clone.isStrict = this.isStrict;
     clone.isPathed = this.isPathed;
-    this.refinements.forEach((fn) => clone.refine(fn));
-    this.checks.forEach((ck) => clone.check(ck));
+    this.refinements.forEach((fn) => {
+      clone.refine(fn);
+    });
+    this.checks.forEach((ck) => {
+      clone.check(ck);
+    });
     return clone;
   }
 
@@ -1756,7 +1760,7 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
       const strict: Record<string, any> = {};
       for (const k in this.fields) {
         const v = obj.value[k];
-        const result = this.fields[k]!.safeParse(v);
+        const result = this.fields[k].safeParse(v);
         if (!result.ok) {
           const message = this.getFieldIssueMessage(k);
           const issue: PawObjectFieldIssue = { field: k, issue: result.error };
@@ -1768,7 +1772,7 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
     } else {
       for (const k in this.fields) {
         const v = obj.value[k];
-        const result = this.fields[k]!.safeParse(v);
+        const result = this.fields[k].safeParse(v);
         if (!result.ok) {
           const message = this.getFieldIssueMessage(k);
           const issue: PawObjectFieldIssue = { field: k, issue: result.error };
@@ -1804,7 +1808,7 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
       const strict: Record<string, any> = {};
       for (const k in this.fields) {
         const v = obj.value[k];
-        const result = this.fields[k]!.safeParse(v);
+        const result = this.fields[k].safeParse(v);
         if (!result.ok) {
           issues.push({ field: k, issue: result.error });
         } else {
@@ -1815,7 +1819,7 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
     } else {
       for (const k in this.fields) {
         const v = obj.value[k];
-        const parsed = this.fields[k]!.safeParse(v);
+        const parsed = this.fields[k].safeParse(v);
         if (!parsed.ok) {
           issues.push({ field: k, issue: parsed.error });
         }

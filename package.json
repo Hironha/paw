@@ -1,11 +1,13 @@
 {
   "name": "paw",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A simple implementation of JSON schema parsing inspired by zod",
   "main": "index.js",
   "scripts": {
     "test": "vitest run --silent=false",
-    "check:types": "tsc --noEmit"
+    "check:types": "tsc --noEmit",
+    "check:lint": "npx @biomejs/biome lint ./src",
+    "check:fmt": "npx @biomejs/biome format ./src"
   },
   "repository": {
     "type": "git",
@@ -19,6 +21,7 @@
   },
   "homepage": "https://github.com/Hironha/paw#readme",
   "devDependencies": {
+    "@biomejs/biome": "2.3.14",
     "@types/node": "^24.0.10",
     "typescript": "^5.8.3",
     "vite": "^7.0.2",
