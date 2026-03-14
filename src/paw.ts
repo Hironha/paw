@@ -134,7 +134,7 @@ class PawRefinementPipeline {
 
 export interface PawParser<T> {
   /**
-   * Failable method that parses `val` into  {@link T}
+   * Fallible method that parses `val` into  {@link T}
    * @throws {Error} Throws a {@link PawParseError} when parsing fails
    * @example
    * const Schema = paw.string();
