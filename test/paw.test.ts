@@ -1,6 +1,4 @@
-import { describe, test, expect } from "vitest";
-import * as paw from "../src/paw";
-import { PawOk, PawError } from "../src/result";
+import { describe, expect, test } from "vitest";
 import {
   PawCheckIssue,
   PawObjectSchemaIssue,
@@ -8,6 +6,8 @@ import {
   PawRequiredIssue,
   PawTransformIssue,
 } from "../src/issue";
+import * as paw from "../src/paw";
+import { PawError, PawOk } from "../src/result";
 
 describe("paw", () => {
   describe("string", () => {
@@ -225,7 +225,7 @@ describe("paw", () => {
         if (typeof ctx.input === "string") {
           try {
             return ctx.ok(BigInt(ctx.input));
-          } catch (e) {
+          } catch (_e) {
             return ctx.ok(ctx.input);
           }
         }

@@ -6,8 +6,9 @@
   "scripts": {
     "test": "vitest run --silent=false",
     "check:types": "tsc --noEmit",
-    "check:lint": "npx @biomejs/biome lint ./src",
-    "check:fmt": "npx @biomejs/biome format ./src"
+    "check:lint": "npx @biomejs/biome lint ./src ./test",
+    "check:fmt": "npx @biomejs/biome format ./src ./test",
+    "check:all": "npm run check:types && npm run check:fmt && npm run check:lint"
   },
   "repository": {
     "type": "git",
