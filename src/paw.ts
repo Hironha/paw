@@ -40,7 +40,8 @@ export type PawType =
   | PawUnion<Array<PawType>>
   | PawTransform<any>;
 
-export type PawInfer<T extends PawType> = T extends PawSchema<string, infer U> ? U : "invalid-type";
+export type PawInfer<T extends PawSchema<string, any>> =
+  T extends PawSchema<string, infer U> ? U : "invalid-type";
 
 type PawParsedObject<T extends Record<string, PawType>> = {
   [K in keyof T]: PawInfer<T[K]>;
