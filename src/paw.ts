@@ -455,7 +455,10 @@ export interface PawTransformable<T> {
 export interface PawTransform<T> extends PawSchema<"transform", T>, PawTransformable<T> {}
 
 export interface PawOptional<S extends PawSchema<string, any>>
-  extends PawSchema<"optional", ReturnType<S["parse"]> | undefined> {}
+  extends PawSchema<"optional", ReturnType<S["parse"]> | undefined>,
+    PawRefinable<PawOptional<S>>,
+    PawCheckable<PawOptional<S>, ReturnType<S["parse"]> | undefined>,
+    PawTransformable<ReturnType<S["parse"]> | undefined> {}
 
 export interface PawRequireable<S extends PawSchema<string, any>> {
   /**
@@ -886,16 +889,27 @@ export class PawOptionalParser<T extends PawSchema<string, any>> implements PawO
 
   private readonly schema: T;
   private refinements: PawRefineFn[];
+  private checks: PawCheckFn<ReturnType<T["parse"]> | undefined>[];
 
   constructor(schema: T) {
     this.schema = schema;
     this.refinements = [];
+    this.checks = [];
     this["~standard"] = new PawStandardSchemaProps(this);
+  }
+
+  check(fn: PawCheckFn<ReturnType<T["parse"]> | undefined>): PawOptional<T> {
+    this.checks.push(fn);
+    return this;
   }
 
   refine<U>(fn: PawRefineFn<U>): PawOptional<T> {
     this.refinements.push(fn);
     return this;
+  }
+
+  transform<U>(fn: PawTransformFn<ReturnType<T["parse"]> | undefined, U>): PawTransform<U> {
+    return new PawTransformParser(fn, this);
   }
 
   parse(val: unknown): ReturnType<T["parse"]> | undefined {
@@ -914,10 +928,24 @@ export class PawOptionalParser<T extends PawSchema<string, any>> implements PawO
     input = refined.value;
 
     if (input === undefined) {
+      const checkResult = new PawCheckPipeline(this.checks, this.kind).run(input, undefined);
+      if (!checkResult.ok) {
+        return checkResult;
+      }
       return new PawOk(input);
     }
 
-    return this.schema.safeParse(input);
+    const result = this.schema.safeParse(input);
+    if (!result.ok) {
+      return result;
+    }
+
+    const checkResult = new PawCheckPipeline(this.checks, this.kind).run(input, result.value);
+    if (!checkResult.ok) {
+      return checkResult;
+    }
+
+    return result;
   }
 }
 
