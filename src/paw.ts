@@ -329,7 +329,7 @@ class PawStandardSchemaProps<S extends PawSchema<any, any>>
 }
 
 // TODO: maybe should allow configuring checks to run in immediate mode or retained mode
-// also, maybe `check` should have it's own issue type
+// since currently all checks runs on immediate mode
 /**
  * An interface for checks. All schemas that supports checks should implement this interface.
  */
