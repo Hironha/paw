@@ -487,7 +487,10 @@ export interface PawMaybeOptional<S extends PawSchema<string, any>> {
 
 export interface PawNullable<S extends PawSchema<string, any>>
   extends PawSchema<"nullable", ReturnType<S["parse"]> | null>,
-    PawMaybeOptional<PawNullable<S>> {}
+    PawMaybeOptional<PawNullable<S>>,
+    PawRefinable<PawNullable<S>>,
+    PawCheckable<PawNullable<S>, ReturnType<S["parse"]> | null>,
+    PawTransformable<ReturnType<S["parse"]> | null> {}
 
 export interface PawMaybeNullable<S extends PawSchema<string, any>> {
   /**
@@ -924,10 +927,12 @@ export class PawNullableParser<T extends PawSchema<string, any>> implements PawN
 
   private readonly parser: T;
   private refinements: PawRefineFn[];
+  private checks: PawCheckFn<ReturnType<T["parse"]> | null>[];
 
   constructor(parser: T) {
     this.parser = parser;
     this.refinements = [];
+    this.checks = [];
     this["~standard"] = new PawStandardSchemaProps(this);
   }
 
@@ -935,9 +940,18 @@ export class PawNullableParser<T extends PawSchema<string, any>> implements PawN
     return new PawOptionalParser(this);
   }
 
+  check(fn: PawCheckFn<ReturnType<T["parse"]> | null>): PawNullable<T> {
+    this.checks.push(fn);
+    return this;
+  }
+
   refine<U>(fn: PawRefineFn<U>): PawNullable<T> {
     this.refinements.push(fn);
     return this;
+  }
+
+  transform<U>(fn: PawTransformFn<ReturnType<T["parse"]> | null, U>): PawTransform<U> {
+    return new PawTransformParser(fn, this);
   }
 
   parse(val: unknown): ReturnType<T["parse"]> | null {
@@ -956,10 +970,24 @@ export class PawNullableParser<T extends PawSchema<string, any>> implements PawN
     input = refined.value;
 
     if (input === null) {
+      const checkResult = new PawCheckPipeline(this.checks, this.kind).run(input, null);
+      if (!checkResult.ok) {
+        return checkResult;
+      }
       return new PawOk(input);
     }
 
-    return this.parser.safeParse(input);
+    const result = this.parser.safeParse(input);
+    if (!result.ok) {
+      return result;
+    }
+
+    const checkResult = new PawCheckPipeline(this.checks, this.kind).run(input, result.value);
+    if (!checkResult.ok) {
+      return checkResult;
+    }
+
+    return result;
   }
 }
 

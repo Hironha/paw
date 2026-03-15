@@ -327,6 +327,85 @@ describe("paw", () => {
     expect(nullablestr.parse(null)).toStrictEqual(null);
   });
 
+  test("nullable refinement works", () => {
+    const invalidmsg = "received invalid type";
+    const Schema = paw
+      .number()
+      .nullable()
+      .refine((ctx) => {
+        if (typeof ctx.input === "string") {
+          return ctx.ok(Number(ctx.input));
+        } else if (typeof ctx.input === "number") {
+          return ctx.ok(ctx.input);
+        }
+        return ctx.error(invalidmsg);
+      });
+
+    let result = Schema.safeParse("2");
+    expect(result.ok).toBeTruthy();
+    expect(PawOk.unwrap(result)).toStrictEqual(2);
+
+    result = Schema.safeParse(2);
+    expect(result.ok).toBeTruthy();
+    expect(PawOk.unwrap(result)).toStrictEqual(2);
+
+    result = Schema.safeParse(true);
+    expect(result.ok).toBeFalsy();
+    expect(PawError.unwrap(result)).toStrictEqual(new PawRefineIssue(invalidmsg, "nullable"));
+  });
+
+  test("nullable check works", () => {
+    const nullmsg = "nullable is not really allowed hehe";
+    const ninamsg = "no cats are allowed here";
+    const Schema = paw
+      .string()
+      .nullable()
+      .check((ctx) => {
+        if (ctx.output === null) {
+          return ctx.error(nullmsg);
+        }
+        return ctx.ok();
+      })
+      .check((ctx) => {
+        if (ctx.output === "nina") {
+          return ctx.error(ninamsg);
+        }
+        return ctx.ok();
+      });
+
+    let result = Schema.safeParse(null);
+    expect(result.ok).toBeFalsy();
+    expect(PawError.unwrap(result)).toStrictEqual(new PawCheckIssue(nullmsg, "nullable"));
+
+    result = Schema.safeParse("nina");
+    expect(result.ok).toBeFalsy();
+    expect(PawError.unwrap(result)).toStrictEqual(new PawCheckIssue(ninamsg, "nullable"));
+
+    result = Schema.safeParse("marine");
+    expect(result.ok).toBeTruthy();
+    expect(PawOk.unwrap(result)).toStrictEqual("marine");
+  });
+
+  test("nullable transform works", () => {
+    const Schema = paw
+      .string()
+      .nullable()
+      .transform((ctx) => {
+        if (ctx.output === null) {
+          return ctx.ok(0);
+        }
+        return ctx.ok(Number(ctx.output));
+      });
+
+    let result = Schema.safeParse(null);
+    expect(result.ok).toBeTruthy();
+    expect(PawOk.unwrap(result)).toStrictEqual(0);
+
+    result = Schema.safeParse("2");
+    expect(result.ok).toBeTruthy();
+    expect(PawOk.unwrap(result)).toStrictEqual(2);
+  });
+
   test("optional parse error forwards error", () => {
     const optstr = paw.string("invalid string").optional();
     const result = optstr.safeParse(2);
