@@ -1,11 +1,18 @@
 import { describe, expect, test } from "vitest";
 import {
+  PawArrayTypeIssue,
+  PawBigIntIssue,
+  PawBooleanIssue,
   PawCheckIssue,
   type PawIssue,
+  PawLiteralIssue,
+  PawNumberIssue,
   PawObjectSchemaIssue,
+  PawObjectTypeIssue,
   PawRefineIssue,
   PawRequiredIssue,
   PawTransformIssue,
+  PawUnionIssue,
 } from "../src/issue";
 import * as paw from "../src/paw";
 import { PawError, PawOk } from "../src/result";
@@ -177,6 +184,26 @@ describe("paw", () => {
       const value = PawOk.unwrap(result);
       expect(value).toStrictEqual("2");
     });
+
+    test("number default works", () => {
+      const errormsg = "not a number";
+      const Schema = paw.number(errormsg).default(17);
+      let result = Schema.safeParse(null);
+      expect(result.ok).toBeTruthy();
+      expect(PawOk.unwrap(result)).toStrictEqual(17);
+
+      result = Schema.safeParse(undefined);
+      expect(result.ok).toBeTruthy();
+      expect(PawOk.unwrap(result)).toStrictEqual(17);
+
+      result = Schema.safeParse(4);
+      expect(result.ok).toBeTruthy();
+      expect(PawOk.unwrap(result)).toStrictEqual(4);
+
+      result = Schema.safeParse("nina");
+      expect(result.ok).toBeFalsy();
+      expect(PawError.unwrap(result)).toStrictEqual(new PawNumberIssue(errormsg));
+    });
   });
 
   describe("bigint", () => {
@@ -258,6 +285,26 @@ describe("paw", () => {
       const value = PawOk.unwrap(result);
       expect(value).toStrictEqual("2");
     });
+
+    test("bigint default works", () => {
+      const errormsg = "not a bigint";
+      const Schema = paw.bigint(errormsg).default(17n);
+      let result = Schema.safeParse(null);
+      expect(result.ok).toBeTruthy();
+      expect(PawOk.unwrap(result)).toStrictEqual(17n);
+
+      result = Schema.safeParse(undefined);
+      expect(result.ok).toBeTruthy();
+      expect(PawOk.unwrap(result)).toStrictEqual(17n);
+
+      result = Schema.safeParse(4n);
+      expect(result.ok).toBeTruthy();
+      expect(PawOk.unwrap(result)).toStrictEqual(4n);
+
+      result = Schema.safeParse("nina");
+      expect(result.ok).toBeFalsy();
+      expect(PawError.unwrap(result)).toStrictEqual(new PawBigIntIssue(errormsg));
+    });
   });
 
   describe("boolean", () => {
@@ -309,6 +356,26 @@ describe("paw", () => {
       expect(result.ok).toBeTruthy();
       const value = PawOk.unwrap(result);
       expect(value).toStrictEqual("true");
+    });
+
+    test("boolean default works", () => {
+      const errormsg = "not a boolean";
+      const Schema = paw.boolean(errormsg).default(true);
+      let result = Schema.safeParse(null);
+      expect(result.ok).toBeTruthy();
+      expect(PawOk.unwrap(result)).toStrictEqual(true);
+
+      result = Schema.safeParse(undefined);
+      expect(result.ok).toBeTruthy();
+      expect(PawOk.unwrap(result)).toStrictEqual(true);
+
+      result = Schema.safeParse(false);
+      expect(result.ok).toBeTruthy();
+      expect(PawOk.unwrap(result)).toStrictEqual(false);
+
+      result = Schema.safeParse("nina");
+      expect(result.ok).toBeFalsy();
+      expect(PawError.unwrap(result)).toStrictEqual(new PawBooleanIssue(errormsg));
     });
   });
 
@@ -408,6 +475,22 @@ describe("paw", () => {
     expect(PawOk.unwrap<Out, PawIssue>(result)).toStrictEqual(2);
   });
 
+  test("nullable default works", () => {
+    const Schema = paw.string().nullable().default("nina");
+
+    let result = Schema.safeParse(null);
+    expect(result.ok).toBeTruthy();
+    expect(PawOk.unwrap(result)).toStrictEqual("nina");
+
+    result = Schema.safeParse(undefined);
+    expect(result.ok).toBeTruthy();
+    expect(PawOk.unwrap(result)).toStrictEqual("nina");
+
+    result = Schema.safeParse("marine");
+    expect(result.ok).toBeTruthy();
+    expect(PawOk.unwrap(result)).toStrictEqual("marine");
+  });
+
   test("optional parse error forwards error", () => {
     const optstr = paw.string("invalid string").optional();
     const result = optstr.safeParse(2);
@@ -487,6 +570,22 @@ describe("paw", () => {
     result = Schema.safeParse("nina");
     expect(result.ok).toBeTruthy();
     expect(PawOk.unwrap(result)).toStrictEqual("nina");
+  });
+
+  test("optional default works", () => {
+    const Schema = paw.string().nullable().optional().default("nina");
+
+    let result = Schema.safeParse(null);
+    expect(result.ok).toBeTruthy();
+    expect(PawOk.unwrap(result)).toStrictEqual("nina");
+
+    result = Schema.safeParse(undefined);
+    expect(result.ok).toBeTruthy();
+    expect(PawOk.unwrap(result)).toStrictEqual("nina");
+
+    result = Schema.safeParse("marine");
+    expect(result.ok).toBeTruthy();
+    expect(PawOk.unwrap(result)).toStrictEqual("marine");
   });
 
   test("array immediate parser works", () => {
@@ -651,6 +750,26 @@ describe("paw", () => {
     expect(result.ok).toBeTruthy();
     const value = PawOk.unwrap(result);
     expect(value).toStrictEqual("test");
+  });
+
+  test("array default works", () => {
+    const errormsg = "not an array";
+    const Schema = paw.array(paw.number(), errormsg).default([17]);
+    let result = Schema.safeParse(null);
+    expect(result.ok).toBeTruthy();
+    expect(PawOk.unwrap(result)).toStrictEqual([17]);
+
+    result = Schema.safeParse(undefined);
+    expect(result.ok).toBeTruthy();
+    expect(PawOk.unwrap(result)).toStrictEqual([17]);
+
+    result = Schema.safeParse([4, 17]);
+    expect(result.ok).toBeTruthy();
+    expect(PawOk.unwrap(result)).toStrictEqual([4, 17]);
+
+    result = Schema.safeParse("nina");
+    expect(result.ok).toBeFalsy();
+    expect(PawError.unwrap(result)).toStrictEqual(new PawArrayTypeIssue(errormsg));
   });
 
   test("retained object parse works", () => {
@@ -942,6 +1061,26 @@ describe("paw", () => {
     expect(PawOk.unwrap(strictResult)).toStrictEqual({ name: "string" });
   });
 
+  test("object default works", () => {
+    const errormsg = "not an object";
+    const Schema = paw.object({ name: paw.string() }, errormsg).default(() => ({ name: "nina" }));
+    let result = Schema.safeParse(null);
+    expect(result.ok).toBeTruthy();
+    expect(PawOk.unwrap(result)).toStrictEqual({ name: "nina" });
+
+    result = Schema.safeParse(undefined);
+    expect(result.ok).toBeTruthy();
+    expect(PawOk.unwrap(result)).toStrictEqual({ name: "nina" });
+
+    result = Schema.safeParse({ name: "marine" });
+    expect(result.ok).toBeTruthy();
+    expect(PawOk.unwrap(result)).toStrictEqual({ name: "marine" });
+
+    result = Schema.safeParse("nina");
+    expect(result.ok).toBeFalsy();
+    expect(PawError.unwrap(result)).toStrictEqual(new PawObjectTypeIssue(errormsg));
+  });
+
   test("non strict parsing keeps reference to original object", () => {
     const src = { name: "Nina", age: 7 };
     const PetSchema = paw.object({ name: paw.string(), age: paw.number().int().min(0) });
@@ -1007,6 +1146,26 @@ describe("paw", () => {
       kind: "literal",
       message: "not a domestic animal",
     });
+  });
+
+  test("literal default works", () => {
+    const errormsg = "not a valid name";
+    const Schema = paw.literal(["nina", "marine"], errormsg).default("nina");
+    let result = Schema.safeParse(null);
+    expect(result.ok).toBeTruthy();
+    expect(PawOk.unwrap(result)).toStrictEqual("nina");
+
+    result = Schema.safeParse(undefined);
+    expect(result.ok).toBeTruthy();
+    expect(PawOk.unwrap(result)).toStrictEqual("nina");
+
+    result = Schema.safeParse("marine");
+    expect(result.ok).toBeTruthy();
+    expect(PawOk.unwrap(result)).toStrictEqual("marine");
+
+    result = Schema.safeParse({ name: "nina" });
+    expect(result.ok).toBeFalsy();
+    expect(PawError.unwrap(result)).toStrictEqual(new PawLiteralIssue(errormsg));
   });
 
   describe("union", () => {
@@ -1079,6 +1238,26 @@ describe("paw", () => {
         kind: "union",
         message: "invalid value",
       });
+    });
+
+    test("union default works", () => {
+      const errormsg = "not a valid union";
+      const Schema = paw.union([paw.number(), paw.string()], errormsg).default("nina");
+      let result = Schema.safeParse(null);
+      expect(result.ok).toBeTruthy();
+      expect(PawOk.unwrap(result)).toStrictEqual("nina");
+
+      result = Schema.safeParse(undefined);
+      expect(result.ok).toBeTruthy();
+      expect(PawOk.unwrap(result)).toStrictEqual("nina");
+
+      result = Schema.safeParse(17);
+      expect(result.ok).toBeTruthy();
+      expect(PawOk.unwrap(result)).toStrictEqual(17);
+
+      result = Schema.safeParse({ name: "nina" });
+      expect(result.ok).toBeFalsy();
+      expect(PawError.unwrap(result)).toStrictEqual(new PawUnionIssue(errormsg));
     });
   });
 
@@ -1198,5 +1377,51 @@ describe("paw", () => {
     expect(PawError.unwrap(result)).toStrictEqual(
       new PawCheckIssue(testEmailErrorMessage, "string"),
     );
+  });
+
+  describe("default", () => {
+    test("default works", () => {
+      const Schema = paw.string().default("nina");
+
+      let result = Schema.safeParse(null);
+      expect(result.ok).toBeTruthy();
+      expect(PawOk.unwrap(result)).toStrictEqual("nina");
+
+      result = Schema.safeParse(undefined);
+      expect(result.ok).toBeTruthy();
+      expect(PawOk.unwrap(result)).toStrictEqual("nina");
+
+      result = Schema.safeParse("test");
+      expect(result.ok).toBeTruthy();
+      expect(PawOk.unwrap(result)).toStrictEqual("test");
+    });
+
+    test("default check works", () => {
+      const ninaerror = "default of nina not allowed";
+      const holoerror = "holomem not allowed";
+      const Schema = paw
+        .string()
+        .required("hello world")
+        .check((ctx) => (ctx.output === "marine" ? ctx.error(holoerror) : ctx.ok()))
+        .default("nina")
+        .check((ctx) => (ctx.output === "nina" ? ctx.error(ninaerror) : ctx.ok()));
+
+      let result = Schema.safeParse(null);
+      expect(result.ok).toBeFalsy();
+      // note that the default parser sets the source issue as the inner schema kind
+      expect(PawError.unwrap(result)).toStrictEqual(new PawCheckIssue(ninaerror, "string"));
+
+      result = Schema.safeParse(undefined);
+      expect(result.ok).toBeFalsy();
+      expect(PawError.unwrap(result)).toStrictEqual(new PawCheckIssue(ninaerror, "string"));
+
+      result = Schema.safeParse("marine");
+      expect(result.ok).toBeFalsy();
+      expect(PawError.unwrap(result)).toStrictEqual(new PawCheckIssue(holoerror, "string"));
+
+      result = Schema.safeParse("hello");
+      expect(result.ok).toBeTruthy();
+      expect(PawOk.unwrap(result)).toStrictEqual("hello");
+    });
   });
 });
