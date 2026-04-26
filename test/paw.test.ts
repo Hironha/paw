@@ -11,6 +11,7 @@ import {
   PawObjectTypeIssue,
   PawRefineIssue,
   PawRequiredIssue,
+  PawStringIssue,
   PawTransformIssue,
   PawUnionIssue,
 } from "../src/issue";
@@ -1422,6 +1423,46 @@ describe("paw", () => {
       result = Schema.safeParse("hello");
       expect(result.ok).toBeTruthy();
       expect(PawOk.unwrap(result)).toStrictEqual("hello");
+    });
+
+    test("default transform works", () => {
+      const numbererror = "Expected a string number";
+      const stringerror = "Not a string";
+      const Schema = paw
+        .string(stringerror)
+        .default("17")
+        .transform((ctx) => {
+          const v = Number(ctx.output);
+          if (Number.isNaN(v)) {
+            return ctx.error(numbererror);
+          }
+          return ctx.ok(v);
+        });
+
+      let result = Schema.safeParse(null);
+      expect(result.ok).toBeTruthy();
+      let value = PawOk.unwrap(result);
+      expect(value).toStrictEqual(17);
+
+      result = Schema.safeParse(undefined);
+      expect(result.ok).toBeTruthy();
+      value = PawOk.unwrap(result);
+      expect(value).toStrictEqual(17);
+
+      result = Schema.safeParse("13");
+      expect(result.ok).toBeTruthy();
+      value = PawOk.unwrap(result);
+      expect(value).toStrictEqual(13);
+
+      result = Schema.safeParse(17);
+      expect(result.ok).toBeFalsy();
+      let error = PawError.unwrap(result);
+      expect(error).toStrictEqual(new PawStringIssue(stringerror));
+
+      result = Schema.safeParse("marine");
+      expect(result.ok).toBeFalsy();
+      error = PawError.unwrap(result);
+      expect(error).toStrictEqual(new PawTransformIssue(numbererror, "string"));
     });
   });
 });
