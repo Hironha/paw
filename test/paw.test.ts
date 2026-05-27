@@ -1041,6 +1041,34 @@ describe("paw", () => {
     expect(error).toStrictEqual(new PawCheckIssue(checkmsg, "object"));
   });
 
+  test("object refine works", () => {
+    const Schema = paw.object({ name: paw.string() }).refine((ctx) => {
+      try {
+        if (typeof ctx.input === "string") {
+          return ctx.ok(JSON.parse(ctx.input));
+        }
+        return ctx.ok(ctx.input);
+      } catch (_) {
+        return ctx.error("Failed deserializing JSON");
+      }
+    });
+
+    const input = { name: "test" };
+    let result = Schema.safeParse(input);
+    expect(result.ok).toBeTruthy();
+    expect(PawOk.unwrap(result)).toStrictEqual(input);
+
+    result = Schema.safeParse(JSON.stringify(input));
+    expect(result.ok).toBeTruthy();
+    expect(PawOk.unwrap(result)).toStrictEqual(input);
+
+    result = Schema.safeParse("test");
+    expect(result.ok).toBeFalsy();
+    expect(PawError.unwrap(result)).toStrictEqual(
+      new PawRefineIssue("Failed deserializing JSON", "object"),
+    );
+  });
+
   test("object transform works", () => {
     type Out = paw.PawInfer<typeof Schema>;
     const Schema = paw.object({ name: paw.string() }).transform((ctx) => ctx.ok(ctx.output.name));
