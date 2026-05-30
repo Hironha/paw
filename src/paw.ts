@@ -178,7 +178,7 @@ export interface PawSchema<N extends string, T> extends PawParser<T>, StandardSc
 /**
  * An interface for refinements. All schemas that support refinements should implement this interface.
  */
-export interface PawRefinable<P extends PawParser<any>, Src extends string> {
+export interface PawRefinable<Src extends string, P extends PawParser<any>> {
   /**
    * Refine receives a closure to transform the value before parsing. Each refinement closure may
    * return a new value that is forwarded to the next refinement and to the parser.
@@ -338,7 +338,7 @@ class PawStandardSchemaProps<P extends PawParser<any>>
 /**
  * An interface for checks. All schemas that supports checks should implement this interface.
  */
-export interface PawCheckable<Schema, T, Src extends string> {
+export interface PawCheckable<Src extends string, Schema, T> {
   /**
    * Add a custom check constraint. Checks runs after the parsing and are usually meant to validate
    * rules that the typesystem does not support.
@@ -462,8 +462,8 @@ export interface PawTransform<T> extends PawSchema<"transform", T>, PawTransform
 
 export interface PawOptional<S extends PawSchema<string, any>>
   extends PawSchema<"optional", ReturnType<S["parse"]> | undefined>,
-    PawRefinable<PawOptional<S>, "optional">,
-    PawCheckable<PawOptional<S>, ReturnType<S["parse"]> | undefined, "optional">,
+    PawRefinable<"optional", PawOptional<S>>,
+    PawCheckable<"optional", PawOptional<S>, ReturnType<S["parse"]> | undefined>,
     PawTransformable<ReturnType<S["parse"]> | undefined>,
     PawDefaultable<PawOptional<S>, ReturnType<S["parse"]> | undefined> {}
 
@@ -501,8 +501,8 @@ export interface PawMaybeOptional<S extends PawSchema<string, any>> {
 export interface PawNullable<S extends PawSchema<string, any>>
   extends PawSchema<"nullable", ReturnType<S["parse"]> | null>,
     PawMaybeOptional<PawNullable<S>>,
-    PawRefinable<PawNullable<S>, "nullable">,
-    PawCheckable<PawNullable<S>, ReturnType<S["parse"]> | null, "nullable">,
+    PawRefinable<"nullable", PawNullable<S>>,
+    PawCheckable<"nullable", PawNullable<S>, ReturnType<S["parse"]> | null>,
     PawTransformable<ReturnType<S["parse"]> | null>,
     PawDefaultable<PawNullable<S>, ReturnType<S["parse"]> | null> {}
 
@@ -539,16 +539,16 @@ export interface PawDefaultable<S extends PawSchema<string, any>, T> extends Paw
 
 export interface PawDefault<S extends PawSchema<string, any>, T>
   extends PawParser<T>,
-    PawCheckable<PawDefault<S, T>, T, S["kind"]>,
+    PawCheckable<S["kind"], PawDefault<S, T>, T>,
     StandardSchemaV1<unknown, T>,
     PawTransformable<T> {}
 
 export interface PawString
   extends PawSchema<"string", string>,
-    PawRefinable<PawString, "string">,
+    PawRefinable<"string", PawString>,
     PawMaybeOptional<PawString>,
     PawMaybeNullable<PawString>,
-    PawCheckable<PawString, string, "string">,
+    PawCheckable<"string", PawString, string>,
     PawTransformable<string>,
     PawRequireable<PawString>,
     PawDefaultable<PawString, string> {
@@ -588,10 +588,10 @@ export interface PawString
 
 export interface PawNumber
   extends PawSchema<"number", number>,
-    PawRefinable<PawNumber, "number">,
+    PawRefinable<"number", PawNumber>,
     PawMaybeOptional<PawNumber>,
     PawMaybeNullable<PawNumber>,
-    PawCheckable<PawNumber, number, "number">,
+    PawCheckable<"number", PawNumber, number>,
     PawTransformable<number>,
     PawRequireable<PawNumber>,
     PawDefaultable<PawNumber, number> {
@@ -646,10 +646,10 @@ export interface PawNumber
 
 export interface PawBigInt
   extends PawSchema<"bigint", bigint>,
-    PawRefinable<PawBigInt, "bigint">,
+    PawRefinable<"bigint", PawBigInt>,
     PawMaybeOptional<PawBigInt>,
     PawMaybeNullable<PawBigInt>,
-    PawCheckable<PawBigInt, bigint, "bigint">,
+    PawCheckable<"bigint", PawBigInt, bigint>,
     PawTransformable<bigint>,
     PawRequireable<PawBigInt>,
     PawDefaultable<PawBigInt, bigint> {
@@ -689,34 +689,34 @@ export interface PawBigInt
 
 export interface PawBoolean
   extends PawSchema<"boolean", boolean>,
-    PawRefinable<PawBoolean, "boolean">,
+    PawRefinable<"boolean", PawBoolean>,
     PawMaybeOptional<PawBoolean>,
     PawMaybeNullable<PawBoolean>,
-    PawCheckable<PawBoolean, boolean, "boolean">,
+    PawCheckable<"boolean", PawBoolean, boolean>,
     PawTransformable<boolean>,
     PawRequireable<PawBoolean>,
     PawDefaultable<PawBoolean, boolean> {}
 
 export interface PawUnknown
   extends PawSchema<"unknown", unknown>,
-    PawRefinable<PawUnknown, "unknown">,
-    PawCheckable<PawUnknown, unknown, "unknown">,
+    PawRefinable<"unknown", PawUnknown>,
+    PawCheckable<"unknown", PawUnknown, unknown>,
     PawTransformable<unknown>,
     PawDefaultable<PawUnknown, unknown> {}
 
 export interface PawAny
   extends PawSchema<"any", any>,
-    PawRefinable<PawAny, "any">,
-    PawCheckable<PawAny, any, "any">,
+    PawRefinable<"any", PawAny>,
+    PawCheckable<"any", PawAny, any>,
     PawTransformable<any>,
     PawDefaultable<PawAny, any> {}
 
 export interface PawArray<T extends PawType>
   extends PawSchema<"array", PawInfer<T>[]>,
-    PawRefinable<PawArray<T>, "array">,
+    PawRefinable<"array", PawArray<T>>,
     PawMaybeOptional<PawArray<T>>,
     PawMaybeNullable<PawArray<T>>,
-    PawCheckable<PawArray<T>, PawInfer<T>[], "array">,
+    PawCheckable<"array", PawArray<T>, PawInfer<T>[]>,
     PawTransformable<PawInfer<T>[]>,
     PawRequireable<PawArray<T>>,
     PawDefaultable<PawArray<T>, PawInfer<T>[]> {
@@ -777,10 +777,10 @@ export interface PawArray<T extends PawType>
 
 export interface PawObject<T extends Record<string, PawType>>
   extends PawSchema<"object", PawParsedObject<T>>,
-    PawRefinable<PawObject<T>, "object">,
+    PawRefinable<"object", PawObject<T>>,
     PawMaybeOptional<PawObject<T>>,
     PawMaybeNullable<PawObject<T>>,
-    PawCheckable<PawObject<T>, PawParsedObject<T>, "object">,
+    PawCheckable<"object", PawObject<T>, PawParsedObject<T>>,
     PawTransformable<T>,
     PawRequireable<PawObject<T>>,
     PawDefaultable<PawObject<T>, PawParsedObject<T>> {
@@ -861,20 +861,20 @@ export interface PawObject<T extends Record<string, PawType>>
 
 export interface PawLiteral<T extends string | number | boolean>
   extends PawSchema<"literal", T>,
-    PawRefinable<PawLiteral<T>, "literal">,
+    PawRefinable<"literal", PawLiteral<T>>,
     PawMaybeOptional<PawLiteral<T>>,
     PawMaybeNullable<PawLiteral<T>>,
-    PawCheckable<PawLiteral<T>, T, "literal">,
+    PawCheckable<"literal", PawLiteral<T>, T>,
     PawTransformable<T>,
     PawRequireable<PawLiteral<T>>,
     PawDefaultable<PawLiteral<T>, T> {}
 
 export interface PawUnion<T extends Array<PawSchema<any, any>>>
   extends PawSchema<"union", PawInfer<T[number]>>,
-    PawRefinable<PawUnion<T>, "union">,
+    PawRefinable<"union", PawUnion<T>>,
     PawMaybeOptional<PawUnion<T>>,
     PawMaybeNullable<PawUnion<T>>,
-    PawCheckable<PawUnion<T>, PawInfer<T[number]>, "union">,
+    PawCheckable<"union", PawUnion<T>, PawInfer<T[number]>>,
     PawTransformable<PawInfer<T[number]>>,
     PawRequireable<PawUnion<T>>,
     PawDefaultable<PawUnion<T>, PawInfer<T[number]>> {}
