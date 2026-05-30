@@ -13,7 +13,8 @@ export type PawIssue =
   | PawObjectSchemaIssue
   | PawLiteralIssue
   | PawUnionIssue
-  | PawCheckIssue
+  // TODO: support generic Src as source
+  | PawCheckIssue<string>
   // TODO: support generic Src as source
   | PawRefineIssue<string>
   | PawTransformIssue;
@@ -117,11 +118,11 @@ export class PawUnionIssue extends PawIssueBase {
 }
 
 const CHECK = "check" as const;
-export class PawCheckIssue extends PawIssueBase {
+export class PawCheckIssue<const Src extends string> extends PawIssueBase {
   public readonly kind = CHECK;
-  public readonly src: PawType["kind"];
+  public readonly src: Src;
 
-  constructor(message: string, src: PawType["kind"], path?: PawIssuePath) {
+  constructor(message: string, src: Src, path?: PawIssuePath) {
     super(message, path);
     this.src = src;
   }
