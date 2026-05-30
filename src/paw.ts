@@ -715,7 +715,7 @@ export interface PawAny
     PawTransformable<"any", any>,
     PawDefaultable<PawAny, any> {}
 
-export interface PawArray<T extends PawType>
+export interface PawArray<T extends PawParser<any>>
   extends PawSchema<"array", PawInfer<T>[]>,
     PawRefinable<"array", PawArray<T>>,
     PawMaybeOptional<PawArray<T>>,
@@ -779,7 +779,7 @@ export interface PawArray<T extends PawType>
   max(size: number, message?: string): PawArray<T>;
 }
 
-export interface PawObject<T extends Record<string, PawType>>
+export interface PawObject<T extends Record<string, PawParser<any>>>
   extends PawSchema<"object", PawParsedObject<T>>,
     PawRefinable<"object", PawObject<T>>,
     PawMaybeOptional<PawObject<T>>,
@@ -857,7 +857,7 @@ export interface PawObject<T extends Record<string, PawType>>
    *
    * expect(Schema.parse({ name: "marin", age: 17 })).toStrictEqual({ name: "marin", age: 17 });
    */
-  extend<U extends Record<string, PawType>>(
+  extend<U extends Record<string, PawParser<any>>>(
     fields: U,
     message?: string,
   ): PawObject<Pretty<MergeRecord<T, U>>>;
@@ -1078,7 +1078,7 @@ export class PawNullableParser<T extends PawSchema<string, any>> implements PawN
   }
 }
 
-class PawDefaultParser<S extends PawSchema<PawType["kind"], any>, T> implements PawDefault<S, T> {
+class PawDefaultParser<S extends PawSchema<string, any>, T> implements PawDefault<S, T> {
   public readonly "~standard": StandardSchemaV1.Props<unknown, T>;
 
   private readonly schema: S;
@@ -1122,7 +1122,7 @@ class PawDefaultParser<S extends PawSchema<PawType["kind"], any>, T> implements 
 
     // TODO: maybe refactor all PawType["kind"] to make
     // it more flexible and accept any parser type
-    const checker = new PawCheckPipeline(this.checks, this.schema.kind as PawType["kind"]);
+    const checker = new PawCheckPipeline(this.checks, this.schema.kind);
     const checkResult = checker.run(input, result.value);
     if (!checkResult.ok) {
       return checkResult;
@@ -1659,7 +1659,7 @@ export class PawAnyParser implements PawAny {
 }
 
 const ARRAY = "array" as const;
-class PawArrayParser<T extends PawType> implements PawArray<T> {
+class PawArrayParser<T extends PawParser<any>> implements PawArray<T> {
   public readonly kind = ARRAY;
   public readonly "~standard": StandardSchemaV1.Props<unknown, PawInfer<T>[]>;
 
@@ -1838,7 +1838,7 @@ class PawArrayParser<T extends PawType> implements PawArray<T> {
 }
 
 const OBJECT = "object" as const;
-class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T> {
+class PawObjectParser<T extends Record<string, PawParser<any>>> implements PawObject<T> {
   public readonly kind = OBJECT;
   public readonly "~standard": StandardSchemaV1.Props<unknown, PawParsedObject<T>>;
 
@@ -1862,7 +1862,7 @@ class PawObjectParser<T extends Record<string, PawType>> implements PawObject<T>
     this["~standard"] = new PawStandardSchemaProps(this);
   }
 
-  extend<U extends Record<string, PawType>>(
+  extend<U extends Record<string, PawParser<any>>>(
     fields: U,
     message?: string,
   ): PawObject<Pretty<MergeRecord<T, U>>> {
@@ -2373,7 +2373,7 @@ export function any(): PawAny {
  *   }
  * });
  */
-export function array<T extends PawType>(unit: T, message?: string): PawArray<T> {
+export function array<T extends PawParser<any>>(unit: T, message?: string): PawArray<T> {
   return new PawArrayParser(unit, message);
 }
 
@@ -2391,7 +2391,7 @@ export function array<T extends PawType>(unit: T, message?: string): PawArray<T>
  *   }
  * });
  */
-export function object<T extends Record<string, PawType>>(
+export function object<T extends Record<string, PawParser<any>>>(
   fields: T,
   message?: string,
 ): PawObject<T> {
