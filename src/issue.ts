@@ -1,4 +1,3 @@
-import type { PawType } from "./paw";
 import type { StandardSchemaV1 } from "./standard-schema";
 
 export type PawIssue =
@@ -17,7 +16,8 @@ export type PawIssue =
   | PawCheckIssue<string>
   // TODO: support generic Src as source
   | PawRefineIssue<string>
-  | PawTransformIssue;
+  // TODO: support generic Src as source
+  | PawTransformIssue<string>;
 
 export class PawParseError extends Error {
   public readonly issue: PawIssue;
@@ -140,11 +140,11 @@ export class PawRefineIssue<const Src extends string> extends PawIssueBase {
 }
 
 const TRANSFORM = "transform" as const;
-export class PawTransformIssue extends PawIssueBase {
+export class PawTransformIssue<const Src extends string> extends PawIssueBase {
   public readonly kind = TRANSFORM;
-  public readonly src: PawType["kind"];
+  public readonly src: Src;
 
-  constructor(message: string, src: PawType["kind"], path?: PawIssuePath) {
+  constructor(message: string, src: Src, path?: PawIssuePath) {
     super(message, path);
     this.src = src;
   }
