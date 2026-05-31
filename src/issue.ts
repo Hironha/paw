@@ -17,7 +17,9 @@ export type PawIssue =
   // TODO: support generic Src as source
   | PawRefineIssue<string>
   // TODO: support generic Src as source
-  | PawTransformIssue<string>;
+  | PawTransformIssue<string>
+  // TODO: support generic Src as source
+  | PawCustomIssue<string>;
 
 export class PawParseError extends Error {
   public readonly issue: PawIssue;
@@ -30,7 +32,7 @@ export class PawParseError extends Error {
 
 export type PawIssuePath = ReadonlyArray<PropertyKey>;
 
-abstract class PawIssueBase implements StandardSchemaV1.Issue {
+export abstract class PawIssueBase implements StandardSchemaV1.Issue {
   public readonly message: string;
   public readonly path?: PawIssuePath;
 
@@ -147,5 +149,18 @@ export class PawTransformIssue<const Src extends string> extends PawIssueBase {
   constructor(message: string, src: Src, path?: PawIssuePath) {
     super(message, path);
     this.src = src;
+  }
+}
+
+const CUSTOM = "custom" as const;
+export class PawCustomIssue<const Src extends string> extends PawIssueBase {
+  public readonly kind = CUSTOM;
+  public readonly src: Src;
+  public readonly issue: PawIssueBase;
+
+  constructor(message: string, src: Src, issue: PawIssueBase, path?: PawIssuePath) {
+    super(message, path);
+    this.src = src;
+    this.issue = issue;
   }
 }

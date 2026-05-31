@@ -4,6 +4,7 @@ import {
   PawBigIntIssue,
   PawBooleanIssue,
   PawCheckIssue,
+  PawCustomIssue,
   type PawIssue,
   PawLiteralIssue,
   PawNumberIssue,
@@ -1491,6 +1492,21 @@ describe("paw", () => {
       expect(result.ok).toBeFalsy();
       error = PawError.unwrap(result);
       expect(error).toStrictEqual(new PawTransformIssue(numbererror, "string"));
+    });
+  });
+
+  describe("custom", () => {
+    test("custom parser works", () => {
+      const Schema = paw.custom(paw.string("failed string"), "failed custom");
+      let result = Schema.safeParse("test");
+      expect(result.ok).toBeTruthy();
+      expect(PawOk.unwrap(result)).toStrictEqual("test");
+
+      result = Schema.safeParse(2);
+      expect(result.ok).toBeFalsy();
+      expect(PawError.unwrap(result)).toStrictEqual(
+        new PawCustomIssue("failed custom", "string", new PawStringIssue("failed string")),
+      );
     });
   });
 });
