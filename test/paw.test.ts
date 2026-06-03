@@ -1497,15 +1497,29 @@ describe("paw", () => {
 
   describe("custom", () => {
     test("custom parser works", () => {
-      const Schema = paw.custom(paw.string("failed string"), "failed custom");
-      let result = Schema.safeParse("test");
+      const Schema = paw
+        .custom("date", (ctx) => {
+          if (ctx.input instanceof Date && !Number.isNaN(ctx.input.getTime())) {
+            return ctx.ok(ctx.input);
+          }
+          return ctx.error(`Expected date but received ${ctx.input}`);
+        })
+        .check((ctx) => {
+          if (ctx.output.getUTCFullYear() === 2000) {
+            return ctx.error("Cannot be year 2000");
+          }
+          return ctx.ok();
+        });
+
+      const date = new Date("2026-06-01T00:00:00.000Z");
+      let result = Schema.safeParse(date);
       expect(result.ok).toBeTruthy();
-      expect(PawOk.unwrap(result)).toStrictEqual("test");
+      expect(PawOk.unwrap(result)).toStrictEqual(date);
 
       result = Schema.safeParse(2);
       expect(result.ok).toBeFalsy();
       expect(PawError.unwrap(result)).toStrictEqual(
-        new PawCustomIssue("failed custom", "string", new PawStringIssue("failed string")),
+        new PawCustomIssue("date", `Expected date but received 2`),
       );
     });
   });

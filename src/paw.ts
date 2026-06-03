@@ -20,26 +20,11 @@ import {
   PawTransformIssue,
   PawUnionIssue,
 } from "./issue";
-import { PawError, PawOk, type PawResult } from "./result";
+import { PawError, type PawInferOk, PawOk, type PawResult } from "./result";
 import type { StandardSchemaV1 } from "./standard-schema";
 
 type Pretty<T> = { [K in keyof T]: T[K] } & {};
 type MergeRecord<B extends Record<any, any>, T extends Record<any, any>> = Omit<B, keyof T> & T;
-
-// export type PawType =
-//   | PawString
-//   | PawNumber
-//   | PawBoolean
-//   | PawUnknown
-//   | PawAny
-//   | PawBigInt
-//   | PawArray<PawType>
-//   | PawObject<Record<string, PawType>>
-//   | PawOptional<any>
-//   | PawNullable<any>
-//   | PawLiteral<string>
-//   | PawUnion<Array<PawType>>
-//   | PawTransform<string, any>;
 
 export type PawInfer<T extends PawParser<any>> =
   T extends PawSchema<string, infer U> ? U : T extends PawParser<infer O> ? O : "invalid-type";
@@ -884,15 +869,36 @@ export interface PawUnion<T extends Array<PawSchema<any, any>>>
     PawRequireable<PawUnion<T>>,
     PawDefaultable<PawUnion<T>, PawInfer<T[number]>> {}
 
-export interface PawCustom<S extends PawSchema<string, any>>
-  extends PawSchema<"custom", PawInfer<S>>,
-    PawRefinable<"custom", PawCustom<S>>,
-    PawMaybeOptional<PawCustom<S>>,
-    PawMaybeNullable<PawCustom<S>>,
-    PawCheckable<"custom", PawCustom<S>, PawInfer<S>>,
-    PawTransformable<"custom", PawInfer<S>>,
-    PawRequireable<PawCustom<S>>,
-    PawDefaultable<PawCustom<S>, PawInfer<S>> {}
+export class PawCustomContext {
+  public readonly name: string;
+  public readonly input: unknown;
+
+  constructor(name: string, input: unknown) {
+    this.name = name;
+    this.input = input;
+  }
+
+  ok<T>(value: T): PawOk<T> {
+    return new PawOk(value);
+  }
+
+  error(message: string, path?: PawIssuePath): PawError<PawIssue> {
+    const issue = new PawCustomIssue(this.name, message, path);
+    return new PawError(issue);
+  }
+}
+
+export type PawCustomFn<T> = (ctx: PawCustomContext) => PawResult<T, PawIssue>;
+
+export interface PawCustom<Fn extends PawCustomFn<any>>
+  extends PawSchema<"custom", PawInferOk<ReturnType<Fn>>>,
+    PawRefinable<"custom", PawCustom<Fn>>,
+    PawMaybeOptional<PawCustom<Fn>>,
+    PawMaybeNullable<PawCustom<Fn>>,
+    PawCheckable<"custom", PawCustom<Fn>, PawInferOk<ReturnType<Fn>>>,
+    PawTransformable<"custom", PawInferOk<ReturnType<Fn>>>,
+    PawRequireable<PawCustom<Fn>>,
+    PawDefaultable<PawCustom<Fn>, PawInferOk<ReturnType<Fn>>> {}
 
 const TRANSFORM = "transform";
 class PawTransformParser<const Src extends string, T, P extends PawParser<any>>
@@ -2272,56 +2278,60 @@ class PawUnionParser<T extends Array<PawSchema<string, any>>> implements PawUnio
 }
 
 const CUSTOM = "custom" as const;
-class PawCustomParser<S extends PawSchema<string, any>> implements PawCustom<S> {
+class PawCustomParser<Fn extends PawCustomFn<any>> implements PawCustom<Fn> {
   public readonly kind = CUSTOM;
-  public readonly "~standard": StandardSchemaV1.Props<unknown, PawInfer<S>>;
+  public readonly "~standard": StandardSchemaV1.Props<unknown, PawInferOk<ReturnType<Fn>>>;
 
-  private readonly schema: S;
-  private readonly message: string | undefined;
+  private readonly name: string;
+  private readonly fn: Fn;
   private reqmessage: string | undefined;
   private refinements: PawRefineFn<typeof CUSTOM>[];
-  private checks: PawCheckFn<typeof CUSTOM, PawInfer<S>>[];
+  private checks: PawCheckFn<typeof CUSTOM, PawInferOk<ReturnType<Fn>>>[];
 
-  constructor(schema: S, message?: string) {
-    this.schema = schema;
-    this.message = message;
+  constructor(name: string, fn: Fn) {
+    this.name = name;
+    this.fn = fn;
     this.refinements = [];
     this.checks = [];
-    this["~standard"] = new PawStandardSchemaProps<PawCustom<S>>(this);
+    this["~standard"] = new PawStandardSchemaProps<PawCustom<Fn>>(this);
   }
 
-  default(value: PawDefaultValue<PawInfer<S>>): PawDefault<this, PawInfer<S>> {
+  default(
+    value: PawDefaultValue<PawInferOk<ReturnType<Fn>>>,
+  ): PawDefault<this, PawInferOk<ReturnType<Fn>>> {
     return new PawDefaultParser(this, value);
   }
 
-  check(fn: PawCheckFn<typeof CUSTOM, PawInfer<S>>): PawCustom<S> {
+  check(fn: PawCheckFn<typeof CUSTOM, PawInferOk<ReturnType<Fn>>>): PawCustom<Fn> {
     this.checks.push(fn);
     return this;
   }
 
-  required(message: string): PawCustom<S> {
+  required(message: string): PawCustom<Fn> {
     this.reqmessage = message;
     return this;
   }
 
-  optional(): PawOptional<PawCustom<S>> {
+  optional(): PawOptional<PawCustom<Fn>> {
     return new PawOptionalParser(this);
   }
 
-  nullable(): PawNullable<PawCustom<S>> {
+  nullable(): PawNullable<PawCustom<Fn>> {
     return new PawNullableParser(this);
   }
 
-  refine<U>(fn: PawRefineFn<typeof CUSTOM, U>): PawCustom<S> {
+  refine<U>(fn: PawRefineFn<typeof CUSTOM, U>): PawCustom<Fn> {
     this.refinements.push(fn);
     return this;
   }
 
-  transform<U>(fn: PawTransformFn<typeof CUSTOM, PawInfer<S>, U>): PawTransform<typeof CUSTOM, U> {
-    return new PawTransformParser<typeof CUSTOM, U, PawCustom<S>>(fn, this, this.kind);
+  transform<U>(
+    fn: PawTransformFn<typeof CUSTOM, PawInferOk<ReturnType<Fn>>, U>,
+  ): PawTransform<typeof CUSTOM, U> {
+    return new PawTransformParser<typeof CUSTOM, U, PawCustom<Fn>>(fn, this, this.kind);
   }
 
-  parse(input: unknown): PawInfer<S> {
+  parse(input: unknown): PawInferOk<ReturnType<Fn>> {
     const result = this.safeParse(input);
     if (!result.ok) {
       throw new PawParseError(result.error);
@@ -2329,7 +2339,7 @@ class PawCustomParser<S extends PawSchema<string, any>> implements PawCustom<S> 
     return result.value;
   }
 
-  safeParse(input: unknown): PawResult<PawInfer<S>, PawIssue> {
+  safeParse(input: unknown): PawResult<PawInferOk<ReturnType<Fn>>, PawIssue> {
     const refined = new PawRefinementPipeline(this.refinements, this.kind).run(input);
     if (!refined.ok) {
       return refined;
@@ -2337,16 +2347,14 @@ class PawCustomParser<S extends PawSchema<string, any>> implements PawCustom<S> 
     input = refined.value;
 
     if (input === null || input === undefined) {
-      const message =
-        this.reqmessage ?? this.message ?? `Expected defined value but received ${input}`;
+      const message = this.reqmessage ?? `Expected defined value but received ${input}`;
       return new PawError(new PawRequiredIssue(message));
     }
 
-    const parsed = this.schema.safeParse(input);
+    const ctx = new PawCustomContext(this.name, input);
+    const parsed = this.fn(ctx);
     if (!parsed.ok) {
-      const message = this.message ?? parsed.error.message;
-      const issue = new PawCustomIssue(message, this.schema.kind, parsed.error);
-      return new PawError(issue);
+      return parsed;
     }
 
     const checkResult = new PawCheckPipeline(this.checks, this.kind).run(input, parsed.value);
@@ -2539,9 +2547,6 @@ export function union<T extends Array<PawSchema<any, any>>>(
   return new PawUnionParser(schemas, message);
 }
 
-export function custom<S extends PawSchema<string, any>>(
-  schema: S,
-  message?: string,
-): PawCustom<S> {
-  return new PawCustomParser(schema, message);
+export function custom<Fn extends PawCustomFn<any>>(name: string, fn: Fn): PawCustom<Fn> {
+  return new PawCustomParser(name, fn);
 }

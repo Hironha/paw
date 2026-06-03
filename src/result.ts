@@ -1,3 +1,5 @@
+export type PawInferOk<R extends PawResult<any, any>> = R extends PawOk<infer T> ? T : never;
+
 export type PawResult<T, E> = PawOk<T> | PawError<E>;
 
 export class PawOk<T> {

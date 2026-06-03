@@ -18,8 +18,7 @@ export type PawIssue =
   | PawRefineIssue<string>
   // TODO: support generic Src as source
   | PawTransformIssue<string>
-  // TODO: support generic Src as source
-  | PawCustomIssue<string>;
+  | PawCustomIssue;
 
 export class PawParseError extends Error {
   public readonly issue: PawIssue;
@@ -153,14 +152,12 @@ export class PawTransformIssue<const Src extends string> extends PawIssueBase {
 }
 
 const CUSTOM = "custom" as const;
-export class PawCustomIssue<const Src extends string> extends PawIssueBase {
+export class PawCustomIssue extends PawIssueBase {
   public readonly kind = CUSTOM;
-  public readonly src: Src;
-  public readonly issue: PawIssueBase;
+  public readonly name: string;
 
-  constructor(message: string, src: Src, issue: PawIssueBase, path?: PawIssuePath) {
+  constructor(name: string, message: string, path?: PawIssuePath) {
     super(message, path);
-    this.src = src;
-    this.issue = issue;
+    this.name = name;
   }
 }
