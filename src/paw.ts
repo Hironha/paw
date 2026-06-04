@@ -869,11 +869,11 @@ export interface PawUnion<T extends Array<PawSchema<any, any>>>
     PawRequireable<PawUnion<T>>,
     PawDefaultable<PawUnion<T>, PawInfer<T[number]>> {}
 
-export class PawCustomContext {
-  public readonly name: string;
+export class PawCustomContext<const Name extends string> {
+  public readonly name: Name;
   public readonly input: unknown;
 
-  constructor(name: string, input: unknown) {
+  constructor(name: Name, input: unknown) {
     this.name = name;
     this.input = input;
   }
@@ -882,23 +882,25 @@ export class PawCustomContext {
     return new PawOk(value);
   }
 
-  error(message: string, path?: PawIssuePath): PawError<PawIssue> {
+  error(message: string, path?: PawIssuePath): PawError<PawCustomIssue<Name>> {
     const issue = new PawCustomIssue(this.name, message, path);
     return new PawError(issue);
   }
 }
 
-export type PawCustomFn<T> = (ctx: PawCustomContext) => PawResult<T, PawIssue>;
+export type PawCustomFn<Name extends string, T> = (
+  ctx: PawCustomContext<Name>,
+) => PawResult<T, PawCustomIssue<Name>>;
 
-export interface PawCustom<Fn extends PawCustomFn<any>>
+export interface PawCustom<Name extends string, Fn extends PawCustomFn<Name, any>>
   extends PawSchema<"custom", PawInferOk<ReturnType<Fn>>>,
-    PawRefinable<"custom", PawCustom<Fn>>,
-    PawMaybeOptional<PawCustom<Fn>>,
-    PawMaybeNullable<PawCustom<Fn>>,
-    PawCheckable<"custom", PawCustom<Fn>, PawInferOk<ReturnType<Fn>>>,
+    PawRefinable<"custom", PawCustom<Name, Fn>>,
+    PawMaybeOptional<PawCustom<Name, Fn>>,
+    PawMaybeNullable<PawCustom<Name, Fn>>,
+    PawCheckable<"custom", PawCustom<Name, Fn>, PawInferOk<ReturnType<Fn>>>,
     PawTransformable<"custom", PawInferOk<ReturnType<Fn>>>,
-    PawRequireable<PawCustom<Fn>>,
-    PawDefaultable<PawCustom<Fn>, PawInferOk<ReturnType<Fn>>> {}
+    PawRequireable<PawCustom<Name, Fn>>,
+    PawDefaultable<PawCustom<Name, Fn>, PawInferOk<ReturnType<Fn>>> {}
 
 const TRANSFORM = "transform";
 class PawTransformParser<const Src extends string, T, P extends PawParser<any>>
@@ -2278,22 +2280,24 @@ class PawUnionParser<T extends Array<PawSchema<string, any>>> implements PawUnio
 }
 
 const CUSTOM = "custom" as const;
-class PawCustomParser<Fn extends PawCustomFn<any>> implements PawCustom<Fn> {
+class PawCustomParser<const Name extends string, Fn extends PawCustomFn<Name, any>>
+  implements PawCustom<Name, Fn>
+{
   public readonly kind = CUSTOM;
   public readonly "~standard": StandardSchemaV1.Props<unknown, PawInferOk<ReturnType<Fn>>>;
 
-  private readonly name: string;
+  private readonly name: Name;
   private readonly fn: Fn;
   private reqmessage: string | undefined;
   private refinements: PawRefineFn<typeof CUSTOM>[];
   private checks: PawCheckFn<typeof CUSTOM, PawInferOk<ReturnType<Fn>>>[];
 
-  constructor(name: string, fn: Fn) {
+  constructor(name: Name, fn: Fn) {
     this.name = name;
     this.fn = fn;
     this.refinements = [];
     this.checks = [];
-    this["~standard"] = new PawStandardSchemaProps<PawCustom<Fn>>(this);
+    this["~standard"] = new PawStandardSchemaProps<PawCustom<Name, Fn>>(this);
   }
 
   default(
@@ -2302,25 +2306,25 @@ class PawCustomParser<Fn extends PawCustomFn<any>> implements PawCustom<Fn> {
     return new PawDefaultParser(this, value);
   }
 
-  check(fn: PawCheckFn<typeof CUSTOM, PawInferOk<ReturnType<Fn>>>): PawCustom<Fn> {
+  check(fn: PawCheckFn<typeof CUSTOM, PawInferOk<ReturnType<Fn>>>): PawCustom<Name, Fn> {
     this.checks.push(fn);
     return this;
   }
 
-  required(message: string): PawCustom<Fn> {
+  required(message: string): PawCustom<Name, Fn> {
     this.reqmessage = message;
     return this;
   }
 
-  optional(): PawOptional<PawCustom<Fn>> {
+  optional(): PawOptional<PawCustom<Name, Fn>> {
     return new PawOptionalParser(this);
   }
 
-  nullable(): PawNullable<PawCustom<Fn>> {
+  nullable(): PawNullable<PawCustom<Name, Fn>> {
     return new PawNullableParser(this);
   }
 
-  refine<U>(fn: PawRefineFn<typeof CUSTOM, U>): PawCustom<Fn> {
+  refine<U>(fn: PawRefineFn<typeof CUSTOM, U>): PawCustom<Name, Fn> {
     this.refinements.push(fn);
     return this;
   }
@@ -2328,7 +2332,7 @@ class PawCustomParser<Fn extends PawCustomFn<any>> implements PawCustom<Fn> {
   transform<U>(
     fn: PawTransformFn<typeof CUSTOM, PawInferOk<ReturnType<Fn>>, U>,
   ): PawTransform<typeof CUSTOM, U> {
-    return new PawTransformParser<typeof CUSTOM, U, PawCustom<Fn>>(fn, this, this.kind);
+    return new PawTransformParser<typeof CUSTOM, U, PawCustom<Name, Fn>>(fn, this, this.kind);
   }
 
   parse(input: unknown): PawInferOk<ReturnType<Fn>> {
@@ -2547,6 +2551,9 @@ export function union<T extends Array<PawSchema<any, any>>>(
   return new PawUnionParser(schemas, message);
 }
 
-export function custom<Fn extends PawCustomFn<any>>(name: string, fn: Fn): PawCustom<Fn> {
+export function custom<const Name extends string, Fn extends PawCustomFn<Name, any>>(
+  name: Name,
+  fn: Fn,
+): PawCustom<Name, Fn> {
   return new PawCustomParser(name, fn);
 }

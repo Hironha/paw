@@ -1519,7 +1519,7 @@ describe("paw", () => {
       result = Schema.safeParse(2);
       expect(result.ok).toBeFalsy();
       expect(PawError.unwrap(result)).toStrictEqual(
-        new PawCustomIssue("date", `Expected date but received 2`),
+        new PawCustomIssue("date", "Expected date but received 2"),
       );
     });
   });
