@@ -1258,6 +1258,7 @@ describe("paw", () => {
       const Schema = paw
         .union([paw.boolean(), paw.number()], "invalid value")
         .transform((ctx) => ctx.ok(ctx.output.toString()));
+
       let result = Schema.safeParse(true);
       expect(result.ok).toBeTruthy();
       expect(PawOk.unwrap(result)).toStrictEqual("true");
@@ -1291,24 +1292,6 @@ describe("paw", () => {
     });
   });
 
-  test("chain of transforms works", () => {
-    const Schema = paw
-      .number("invalid number")
-      .transform((ctx) => ctx.ok(ctx.output.toString()))
-      .transform((ctx) => ctx.ok(Number(ctx.output)))
-      .transform((ctx) => ctx.ok(Boolean(ctx.output)));
-    let result = Schema.safeParse(2);
-    expect(result.ok).toBeTruthy();
-    expect(PawOk.unwrap(result)).toStrictEqual(true);
-
-    result = Schema.safeParse({});
-    expect(!result.ok).toBeTruthy();
-    expect(PawError.unwrap(result)).toMatchObject({
-      kind: "number",
-      message: "invalid number",
-    });
-  });
-
   test("transform is able to return an issue", () => {
     const errmsg = "Expected string to be parsable to number";
     const Schema = paw.string().transform((ctx) => {
@@ -1326,48 +1309,6 @@ describe("paw", () => {
     result = Schema.safeParse("abc");
     expect(result.ok).toBeFalsy();
     expect(PawError.unwrap(result)).toStrictEqual(new PawTransformIssue(errmsg, "string"));
-  });
-
-  test("transform chain stops at the first issue", () => {
-    const strErrorMessage = "Expected string to be parsable to number";
-    const boolErrorMessage = "Expected either 0 or 1";
-    const Schema = paw
-      .string()
-      .transform((ctx) => {
-        const n = Number(ctx.output);
-        if (Number.isNaN(n)) {
-          return ctx.error(strErrorMessage);
-        }
-        return ctx.ok(n);
-      })
-      .transform((ctx) => {
-        switch (ctx.output) {
-          case 0:
-            return ctx.ok(false);
-          case 1:
-            return ctx.ok(true);
-          default:
-            return ctx.error(boolErrorMessage);
-        }
-      });
-
-    let result = Schema.safeParse("1");
-    expect(result.ok).toBeTruthy();
-    expect(PawOk.unwrap(result)).toStrictEqual(true);
-
-    result = Schema.safeParse("0");
-    expect(result.ok).toBeTruthy();
-    expect(PawOk.unwrap(result)).toStrictEqual(false);
-
-    result = Schema.safeParse("abc");
-    expect(result.ok).toBeFalsy();
-    expect(PawError.unwrap(result)).toStrictEqual(new PawTransformIssue(strErrorMessage, "string"));
-
-    result = Schema.safeParse("2");
-    expect(result.ok).toBeFalsy();
-    expect(PawError.unwrap(result)).toStrictEqual(
-      new PawTransformIssue(boolErrorMessage, "string"),
-    );
   });
 
   test("refine issue works", () => {
