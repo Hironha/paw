@@ -1154,7 +1154,7 @@ export class PawNullableParser<S extends PawSchema<string, any, any>> implements
   transform<U>(
     fn: PawTransformFn<S["kind"], ReturnType<S["parse"]> | null, U>,
   ): PawTransform<S["kind"], PawNullable<S>, U> {
-    return new PawTransformParser(this.schema.kind, this.schema, fn);
+    return new PawTransformParser(this.schema.kind, this, fn);
   }
 
   parse(val: unknown): ReturnType<S["parse"]> | null {

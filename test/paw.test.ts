@@ -421,10 +421,10 @@ describe("paw", () => {
 
     result = Schema.safeParse(true);
     expect(result.ok).toBeFalsy();
-    expect(PawError.unwrap(result)).toStrictEqual(new PawRefineIssue(invalidmsg, "nullable"));
+    expect(PawError.unwrap(result)).toStrictEqual(new PawRefineIssue(invalidmsg, "number"));
   });
 
-  test("nullable check works", () => {
+  test("nullable check works and forwards issue from wrapped schema", () => {
     const nullmsg = "nullable is not really allowed hehe";
     const ninamsg = "no cats are allowed here";
     const Schema = paw
@@ -445,11 +445,11 @@ describe("paw", () => {
 
     let result = Schema.safeParse(null);
     expect(result.ok).toBeFalsy();
-    expect(PawError.unwrap(result)).toStrictEqual(new PawCheckIssue(nullmsg, "nullable"));
+    expect(PawError.unwrap(result)).toStrictEqual(new PawCheckIssue(nullmsg, "string"));
 
     result = Schema.safeParse("nina");
     expect(result.ok).toBeFalsy();
-    expect(PawError.unwrap(result)).toStrictEqual(new PawCheckIssue(ninamsg, "nullable"));
+    expect(PawError.unwrap(result)).toStrictEqual(new PawCheckIssue(ninamsg, "string"));
 
     result = Schema.safeParse("marine");
     expect(result.ok).toBeTruthy();
@@ -493,101 +493,101 @@ describe("paw", () => {
     expect(PawOk.unwrap(result)).toStrictEqual("marine");
   });
 
-  test("optional parse error forwards error", () => {
-    const optstr = paw.string("invalid string").optional();
-    const result = optstr.safeParse(2);
-    expect(!result.ok, "2 is not an optional string");
+  describe("optional", () => {
+    test("optional parse error forwards error", () => {
+      const optstr = paw.string("invalid string").optional();
+      const result = optstr.safeParse(2);
+      expect(!result.ok, "2 is not an optional string");
 
-    const error = PawError.unwrap(result);
-    expect(error).toMatchObject({
-      kind: "string",
-      message: "invalid string",
+      const error = PawError.unwrap(result);
+      expect(error).toStrictEqual(new PawStringIssue("invalid string"));
     });
   });
 
-  test("optional refine works", () => {
-    const optstr = paw
-      .string()
-      .refine((ctx) =>
-        typeof ctx.input === "number" ? ctx.ok(ctx.input.toString()) : ctx.ok(ctx.input),
-      )
-      .optional();
+    test("optional refine works", () => {
+      const optstr = paw
+        .string()
+        .refine((ctx) =>
+          typeof ctx.input === "number" ? ctx.ok(ctx.input.toString()) : ctx.ok(ctx.input),
+        )
+        .optional();
 
-    expect(optstr.parse("test")).toStrictEqual("test");
-    expect(optstr.parse(2)).toStrictEqual("2");
-    expect(optstr.parse(undefined)).toStrictEqual(undefined);
-    expect(optstr.safeParse(null).ok).toBeFalsy();
-    expect(!optstr.safeParse(true).ok, "true is not a optional string");
-  });
+      expect(optstr.parse("test")).toStrictEqual("test");
+      expect(optstr.parse(2)).toStrictEqual("2");
+      expect(optstr.parse(undefined)).toStrictEqual(undefined);
+      expect(optstr.safeParse(null).ok).toBeFalsy();
+      expect(!optstr.safeParse(true).ok, "true is not a optional string");
+    });
 
-  test("optional check works", () => {
-    const errormsg = "cats are not allowe here!";
-    const Schema = paw
-      .string()
-      .optional()
-      .check((ctx) => (ctx.output === "nina" ? ctx.error(errormsg) : ctx.ok()));
+    test("optional check works and forwards issue from wrapped schema", () => {
+      const errormsg = "cats are not allowe here!";
+      const Schema = paw
+        .string()
+        .optional()
+        .check((ctx) => (ctx.output === "nina" ? ctx.error(errormsg) : ctx.ok()));
 
-    let result = Schema.safeParse("nina");
-    expect(result.ok).toBeFalsy();
-    expect(PawError.unwrap(result)).toStrictEqual(new PawCheckIssue(errormsg, "optional"));
+      let result = Schema.safeParse("nina");
+      expect(result.ok).toBeFalsy();
+      expect(PawError.unwrap(result)).toStrictEqual(new PawCheckIssue(errormsg, "string"));
 
-    result = Schema.safeParse("marine");
-    expect(result.ok).toBeTruthy();
-    expect(PawOk.unwrap(result)).toStrictEqual("marine");
-  });
+      result = Schema.safeParse("marine");
+      expect(result.ok).toBeTruthy();
+      expect(PawOk.unwrap(result)).toStrictEqual("marine");
+    });
 
-  test("optional transform works", () => {
-    const Schema = paw
-      .string()
-      .optional()
-      .transform((ctx) => (ctx.output == null ? ctx.ok(0) : ctx.ok(Number(ctx.output))));
+    test("optional transform works", () => {
+      const Schema = paw
+        .string()
+        .optional()
+        .transform((ctx) => (ctx.output == null ? ctx.ok(0) : ctx.ok(Number(ctx.output))));
 
-    let result = Schema.safeParse(undefined);
-    expect(result.ok).toBeTruthy();
-    expect(PawOk.unwrap(result)).toStrictEqual(0);
+      let result = Schema.safeParse(undefined);
+      expect(result.ok).toBeTruthy();
+      expect(PawOk.unwrap(result)).toStrictEqual(0);
 
-    result = Schema.safeParse("2");
-    expect(result.ok).toBeTruthy();
-    expect(PawOk.unwrap(result)).toStrictEqual(2);
-  });
+      result = Schema.safeParse("2");
+      expect(result.ok).toBeTruthy();
+      expect(PawOk.unwrap(result)).toStrictEqual(2);
+    });
 
-  test("optional runs internal schema checks", () => {
-    const cats = ["nina", "mimi"];
-    const catserror = "only cats are allowed here!";
-    const ninaerror = "only nina is allowed";
-    const Schema = paw
-      .string()
-      .check((ctx) => (cats.includes(ctx.output) ? ctx.ok() : ctx.error(catserror)))
-      .optional()
-      .check((ctx) => (ctx.output === "nina" ? ctx.ok() : ctx.error(ninaerror)));
+    test("optional runs internal schema checks", () => {
+      const cats = ["nina", "mimi"];
+      const catserror = "only cats are allowed here!";
+      const ninaerror = "only nina is allowed";
+      const Schema = paw
+        .string()
+        .check((ctx) => (cats.includes(ctx.output) ? ctx.ok() : ctx.error(catserror)))
+        .optional()
+        .check((ctx) => (ctx.output === "nina" ? ctx.ok() : ctx.error(ninaerror)));
 
-    let result = Schema.safeParse("rodolfo");
-    expect(result.ok).toBeFalsy();
-    expect(PawError.unwrap(result)).toStrictEqual(new PawCheckIssue(catserror, "string"));
+      let result = Schema.safeParse("rodolfo");
+      expect(result.ok).toBeFalsy();
+      expect(PawError.unwrap(result)).toStrictEqual(new PawCheckIssue(catserror, "string"));
 
-    result = Schema.safeParse("mimi");
-    expect(result.ok).toBeFalsy();
-    expect(PawError.unwrap(result)).toStrictEqual(new PawCheckIssue(ninaerror, "optional"));
+      result = Schema.safeParse("mimi");
+      expect(result.ok).toBeFalsy();
+      expect(PawError.unwrap(result)).toStrictEqual(new PawCheckIssue(ninaerror, "string"));
 
-    result = Schema.safeParse("nina");
-    expect(result.ok).toBeTruthy();
-    expect(PawOk.unwrap(result)).toStrictEqual("nina");
-  });
+      result = Schema.safeParse("nina");
+      expect(result.ok).toBeTruthy();
+      expect(PawOk.unwrap(result)).toStrictEqual("nina");
+    });
 
-  test("optional default works", () => {
-    const Schema = paw.string().nullable().optional().default("nina");
+    test("optional default works", () => {
+      const Schema = paw.string().nullable().optional().default("nina");
 
-    let result = Schema.safeParse(null);
-    expect(result.ok).toBeTruthy();
-    expect(PawOk.unwrap(result)).toStrictEqual("nina");
+      let result = Schema.safeParse(null);
+      expect(result.ok).toBeTruthy();
+      expect(PawOk.unwrap(result)).toStrictEqual("nina");
 
-    result = Schema.safeParse(undefined);
-    expect(result.ok).toBeTruthy();
-    expect(PawOk.unwrap(result)).toStrictEqual("nina");
+      result = Schema.safeParse(undefined);
+      expect(result.ok).toBeTruthy();
+      expect(PawOk.unwrap(result)).toStrictEqual("nina");
 
-    result = Schema.safeParse("marine");
-    expect(result.ok).toBeTruthy();
-    expect(PawOk.unwrap(result)).toStrictEqual("marine");
+      result = Schema.safeParse("marine");
+      expect(result.ok).toBeTruthy();
+      expect(PawOk.unwrap(result)).toStrictEqual("marine");
+    });
   });
 
   test("array immediate parser works", () => {
