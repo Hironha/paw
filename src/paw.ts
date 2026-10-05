@@ -19,9 +19,9 @@ import {
   PawStringIssue,
   PawTransformIssue,
   PawUnionIssue,
-} from "./issue";
-import { PawError, type PawInferError, type PawInferOk, PawOk, type PawResult } from "./result";
-import type { StandardSchemaV1 } from "./standard-schema";
+} from "./issue.js";
+import { PawError, type PawInferError, type PawInferOk, PawOk, type PawResult } from "./result.js";
+import type { StandardSchemaV1 } from "./standard-schema.js";
 
 type Pretty<T> = { [K in keyof T]: T[K] } & {};
 type MergeRecord<B extends Record<any, any>, T extends Record<any, any>> = Omit<B, keyof T> & T;

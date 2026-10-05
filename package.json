@@ -2,14 +2,16 @@
 	"name": "paw",
 	"version": "1.2.0",
 	"description": "A simple implementation of JSON schema parsing inspired by zod",
+  "type": "module",
 	"main": "index.js",
 	"scripts": {
-		"test": "vitest run --silent=false",
-		"fix:all": "npx @biomejs/biome check --write ./src ./test",
+    "test": "tsc --build tsconfig.test.json && node --test \"./disttest/tests/**/*.test.js\"",
+		"fix:all": "npx @biomejs/biome check --write ./src",
 		"check:types": "tsc --noEmit",
-		"check:lint": "npx @biomejs/biome lint ./src ./test",
-		"check:fmt": "npx @biomejs/biome format ./src ./test",
-		"check:all": "npm run check:types && npm run check:fmt && npm run check:lint"
+		"check:lint": "npx @biomejs/biome lint ./src",
+		"check:fmt": "npx @biomejs/biome format ./src",
+		"check:all": "npm run check:types && npm run check:fmt && npm run check:lint",
+    "build": "tsc --build tsconfig.build.json"
 	},
 	"repository": {
 		"type": "git",
@@ -25,8 +27,6 @@
 	"devDependencies": {
 		"@biomejs/biome": "2.3.14",
 		"@types/node": "^24.0.10",
-		"typescript": "7.0.2",
-		"vite": "^7.0.2",
-		"vitest": "^3.2.4"
+		"typescript": "7.0.2"
 	}
 }

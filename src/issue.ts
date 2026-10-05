@@ -1,4 +1,4 @@
-import type { StandardSchemaV1 } from "./standard-schema";
+import type { StandardSchemaV1 } from "./standard-schema.js";
 
 export type PawIssue =
   | PawRequiredIssue
