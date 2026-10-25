@@ -3,12 +3,12 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "noEmit": false,
-    "rootDir": "src",
+    "rootDir": ".",
     "outDir": "disttest",
     "declaration": false,
     "declarationMap": false,
     "sourceMap": false,
     "allowImportingTsExtensions": false
   },
-  "include": ["src"]
+  "include": ["src", "tests"]
 }

@@ -17,9 +17,9 @@ import {
   PawStringIssue,
   PawTransformIssue,
   PawUnionIssue,
-} from "../issue.js";
-import * as paw from "../paw.js";
-import { PawError, PawOk } from "../result.js";
+} from "../src/issue.js";
+import * as paw from "../src/paw.js";
+import { PawError, PawOk } from "../src/result.js";
 
 describe("paw", () => {
   describe("string", () => {
